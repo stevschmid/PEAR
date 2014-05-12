@@ -4,7 +4,7 @@ INSTALL_PATH ?= /usr/local/bin
 all: pear
 
 pear: pear-pt.o args.o statistics.o reader.o  # fastq.o
-	$(CC) $(CFLAGS) $+ -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $+ -lm -lpthread -lbz2 -o $@
 
 pear-pt.o: pear-pt.c
 	$(CC) -c $(CFLAGS) $+ -o $@

@@ -4,13 +4,35 @@
 #include <stdint.h>
 #include <math.h>
 #include "reader.h"
+#ifdef HAVE_BZLIB_H
+#include <bzlib.h>
+#endif
 
 #define READ_SIZE 400
+
+#define PEAR_FILETYPE_FASTQ     1 << 0
+#define PEAR_FILETYPE_BZIP2     1 << 1
+#define PEAR_FILETYPE_GZIP      1 << 2
+#define PEAR_FILETYPE_UNKNOWN   1 << 3
 
 static FILE * fp1;
 static FILE * fp2;
 static char * mempool;
 static int eof1 = 1, eof2 = 1;
+
+static int forward_file_type = PEAR_FILETYPE_UNKNOWN;
+static int reverse_file_type = PEAR_FILETYPE_UNKNOWN;
+
+#ifdef HAVE_BZLIB_H
+BZFILE * fd1;
+BZFILE * fd2;
+#endif
+
+#ifdef HAVE_BZLIB_H
+static const char * err_unknown_type = "[ERROR] - Cannot determine the file type of %s. Ensure it is a BZIP2 compressed FASTQ file  or plain FASTQ.\n";
+#else
+static const char * err_unknown_type = "[ERROR] - Cannot determine the file type of %s. Ensure it is a FASTQ file.\n";
+#endif
 
 /* READ_SIZE 10 and 3108 was the fastest till now */
 //memBlock fwd_block;
@@ -19,14 +41,73 @@ static int eof1 = 1, eof2 = 1;
 unsigned int rcount = 0;
 
 
-int check_file_magic (const char * filename)
+static int check_file_magic (FILE * fp)
 {
-  FILE * fp;
+  char header[4];
+  int cnt;
 
-  fp = fopen(filename, "r");
-  
-  fclose(fp);
+  cnt = fread (header, sizeof(char), 4, fp);
+
+  if (cnt <4) return PEAR_FILETYPE_UNKNOWN;
+
+#ifdef HAVE_BZLIB_H
+  if (!strncmp (header, "BZh", 3)) return PEAR_FILETYPE_BZIP2;
+#endif
+
+  if (header[0] == '@') return PEAR_FILETYPE_FASTQ;
+
+  return PEAR_FILETYPE_UNKNOWN;
 }
+
+int pear_check_files (const char * f1, const char * f2)
+{
+  FILE * fp1;
+  FILE * fp2;
+
+  fp1 = fopen (f1, "r");
+  fp2 = fopen (f2, "r");
+
+  if (!fp1)
+   {
+     fprintf (stderr, "[ERROR] - Cannot open file %s\n", f1);
+   }
+  if (!fp2)
+   {
+     fprintf (stderr, "[ERROR] - Cannot open file %s\n", f2);
+   }
+  if (!fp1 || !fp2) return (0);
+  
+
+  forward_file_type = check_file_magic (fp1);
+  reverse_file_type = check_file_magic (fp2);
+
+
+  if (forward_file_type == PEAR_FILETYPE_UNKNOWN)
+   {
+     //fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. Ensure it is a BZIP2 compressed FASTQ file  or plain FASTQ.\n", f1);
+     fprintf (stderr, err_unknown_type, f1);
+   }
+  if (reverse_file_type == PEAR_FILETYPE_UNKNOWN)
+   {
+     //fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. Ensure it is a BZIP2 compressed FASTQ file  or plain FASTQ.\n", f2);
+     fprintf (stderr, err_unknown_type, f2);
+   }
+  if (forward_file_type == PEAR_FILETYPE_UNKNOWN || reverse_file_type == PEAR_FILETYPE_UNKNOWN) return (0);
+
+
+  if (reverse_file_type != forward_file_type)
+   {
+     fprintf (stderr, "[ERROR] - This version of PEAR requires that input reads (forward and reverse) files are of the same format, i.e. both plain FASTQ or both BZIP2 compressed FASTQ\n");
+     return (0);
+   }
+
+  fclose (fp1);
+  fclose (fp2);
+
+  return (1);
+}
+
+
 
 void print_number (size_t x)
 {
@@ -75,19 +156,37 @@ void comp_mem (size_t memsize, size_t * reads_count, size_t * rawdata_size)
 
 void rewind_files (void)
 {
+  #ifdef HAVE_BZLIB_H
+  int error;
+  #endif
+
   rewind (fp1);
   rewind (fp2);
   eof1 = eof2 = 1;
+
+  #ifdef HAVE_BZLIB_H
+  BZ2_bzReadClose(&error, fd1);
+  BZ2_bzReadClose(&error, fd2);
+
+  fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
+  fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
+
 }
 
-void init_fastq_reader_double_buffer (const char * file1, const char * file2, size_t memsize, memBlock * pri_fwd, memBlock * pri_rev, 
-memBlock * sec_fwd, memBlock * sec_rev)
+void init_fastq_reader_double_buffer (const char * file1, const char * file2, 
+                                      size_t memsize, 
+                                      memBlock * pri_fwd, memBlock * pri_rev, 
+                                      memBlock * sec_fwd, memBlock * sec_rev)
 {
   size_t reads_count;
   size_t rawdata_size;
   void * mem_start;
   void * dbmem;
   int i;
+  #ifdef HAVE_BZLIB_H
+  int error;
+  #endif
   #ifdef __DEBUG__
   size_t unused_mem;
   size_t used_mem;
@@ -139,8 +238,13 @@ memBlock * sec_fwd, memBlock * sec_rev)
   printf ("\n");
   #endif
 
-  fp1 = fopen (file1, "r");
-  fp2 = fopen (file2, "r");
+  fp1 = fopen (file1, "rb");
+  fp2 = fopen (file2, "rb");
+
+  #ifdef HAVE_BZLIB_H
+  fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
+  fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
 
   if (!fp1 || !fp2)
    {
@@ -239,6 +343,9 @@ init_fastq_reader (const char * file1, const char * file2, size_t memsize, memBl
   size_t rawdata_size;
   void * mem_start;
   int i;
+  #ifdef HAVE_BZLIB_H
+  int error;
+  #endif
   #ifdef __DEBUG__
   size_t used_mem;
   size_t unused_mem;
@@ -288,8 +395,13 @@ init_fastq_reader (const char * file1, const char * file2, size_t memsize, memBl
   printf ("\n");
   #endif
 
-  fp1 = fopen (file1, "r");
-  fp2 = fopen (file2, "r");
+  fp1 = fopen (file1, "rb");
+  fp2 = fopen (file2, "rb");
+
+  #ifdef HAVE_BZLIB_H
+  fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
+  fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
 
   fwd->max_reads_count   = rev->max_reads_count   = reads_count;
   fwd->rawdata_size      = rev->rawdata_size      = rawdata_size;
@@ -455,10 +567,17 @@ parse_block (memBlock * block)
   return elms;
 }
 
+#ifdef HAVE_BZLIB_H
+int db_read_fastq_block (memBlock * block, BZFILE * fp, memBlock * old_block)
+#else
 int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
+#endif
 {
   int nBytes;
   size_t remainder;
+  #ifdef HAVE_BZLIB_H
+  int error;
+  #endif
 
   /* TODO: check if something from the previous block exists */
   /* check also if we do not have a large block that couldnt be read in one read */
@@ -480,7 +599,14 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
    }
   
   /* TODO: Check this line again for correctness */
-  nBytes = fread (block->rawdata + remainder, sizeof (char), block->rawdata_size - remainder, fp);
+  #ifdef HAVE_BZLIB_H
+  if (forward_file_type == PEAR_FILETYPE_FASTQ)
+  #endif
+    nBytes = fread (block->rawdata + remainder, sizeof (char), block->rawdata_size - remainder, fp);
+  #ifdef HAVE_BZLIB_H
+  else
+    nBytes = BZ2_bzRead (&error, fp, block->rawdata + remainder, block->rawdata_size - remainder);
+  #endif
   if (!nBytes && !remainder)
    {
  //    if (remainder) printf ("REMAINDER Exists\n"); else printf ("No remainder\n");
@@ -501,9 +627,22 @@ unsigned int db_get_next_reads (memBlock * fwd_block, memBlock * rev_block, memB
 {
   unsigned int n1, n2;
 
+  #ifdef HAVE_BZLIB_H
+  if (forward_file_type == PEAR_FILETYPE_BZIP2)
+   {
+     eof1 = db_read_fastq_block (fwd_block, fd1, old_fwd_block);
+     eof2 = db_read_fastq_block (rev_block, fd2, old_rev_block);
+   }
+  else
+   {
+     eof1 = db_read_fastq_block (fwd_block, fp1, old_fwd_block);
+     eof2 = db_read_fastq_block (rev_block, fp2, old_rev_block);
+   }
+  #else
   eof1 = db_read_fastq_block (fwd_block, fp1, old_fwd_block);
   eof2 = db_read_fastq_block (rev_block, fp2, old_rev_block);
-  
+  #endif
+
   n1 = parse_block (fwd_block);
   n2 = parse_block (rev_block);
 

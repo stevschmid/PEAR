@@ -1,5 +1,8 @@
 #ifndef READER_H
 #define READER_H
+#ifdef HAVE_BZLIB_H
+#include <bzlib.h>
+#endif
 
 #define         PEAR_FORWARD_LARGER              1
 #define         PEAR_REVERSE_LARGER              2
@@ -62,7 +65,12 @@ void destroy_reader (void);
 void init_fastq_reader_double_buffer (const char * file1, const char * file2, size_t memsize, memBlock * pri_fwd, memBlock * pri_rev, 
 memBlock * sec_fwd, memBlock * sec_rev);
 unsigned int db_get_next_reads (memBlock * fwd_block, memBlock * rev_block, memBlock * old_fwd_block, memBlock * old_rev_block, int *sanity);
+#ifdef HAVE_BZLIB_H
+int db_read_fastq_block (memBlock * block, BZFILE * fp, memBlock * old_block);
+#else
 int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block);
+#endif
 int read_fastq_block (memBlock * block, FILE * fp);
+int pear_check_files (const char * f1, const char * f2);
 void rewind_files (void);
 #endif

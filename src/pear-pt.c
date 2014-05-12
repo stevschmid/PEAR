@@ -2844,9 +2844,15 @@ main (int argc, char * argv[])
      usage ();
      return (EXIT_FAILURE);
    }
-
+  
   /* Display PEAR instance settings */
   DisplayInstance (&sw);
+
+  /* check consistency of input files */
+  if (!pear_check_files (sw.fastq_left, sw.fastq_right))
+   {
+     return (EXIT_FAILURE);
+   }
 
   init_thr_global ();
   thr_data = (struct thread_local_t *) calloc (sw.threads, sizeof (struct thread_local_t));
