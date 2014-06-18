@@ -26,6 +26,8 @@ int check_file_magic (const char * filename)
   fp = fopen(filename, "r");
   
   fclose(fp);
+
+  return (0);
 }
 
 void print_number (size_t x)
