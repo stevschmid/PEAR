@@ -3,6 +3,7 @@ import sys
 import os
 import filecmp
 import subprocess
+import shutil
 
 def unit_test(f, r, o, fcompare):
     subprocess.call(["../src/pear", "-f", f, "-r", r, "-o", o, "-c", "0"], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
@@ -15,6 +16,14 @@ def unit_test(f, r, o, fcompare):
         return "passed"
     else:
         return "failed"
+
+def gen(f, r, o, fcompare):
+    subprocess.call(["./pear-new", "-f", f, "-r", r, "-o", o, "-c", "0"], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+    shutil.copyfile(o+".assembled.fastq", fcompare)
+    os.remove(o+".discarded.fastq")
+    os.remove(o+".unassembled.forward.fastq")
+    os.remove(o+".unassembled.reverse.fastq")
+    
 
 if __name__ == "__main__":
     test_files = [["raw/16S_101bp1.fq", "raw/16S_101bp2.fq", "raw/compare/101bp.assembled.fastq"], 
@@ -39,5 +48,6 @@ if __name__ == "__main__":
     i = 1
     for test in test_files:
         flag = unit_test(test[0], test[1], "temp", test[2])
+        gen(test[0], test[1], "temp", test[2])
         print("Test " + repr(i) + " " + flag)
         i = i + 1
