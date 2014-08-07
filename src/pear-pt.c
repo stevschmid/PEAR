@@ -71,7 +71,7 @@ char revmap_nt[16] =
 char cpl_nt[16]   =   {0, 8, 4, 3, 2, 5, 6, 7, 1, 9, 10, 11, 12, 13, 14, 15};
 
 /* translate from a 4-bit code to a table of 6 entries (AC, AG, AT, CG, CT, GT) */
-int translate[16] =  {-1, -1, -1, 0, -1, 1, 3, -1, -1, 2,  4, -1,  5, -1, -1, -1};
+int translate[16] =  {-1, 0, 1, 4, 2, 5, 7, -1, 3, 6,  8, -1,  9, -1, -1, -1};
 
 #define UNCALLED 8              /* degenerate bases start from 9 */
 
@@ -155,12 +155,16 @@ static double assemble_overlap (fastqRead * left,
 
 double      new_eq[4096];
 double     new_neq[4096];
+
+/*
 double     new_eqA[4096];
 double     new_eqC[4096];
 double     new_eqG[4096];
 double     new_eqT[4096];
-
 double  new_diff[6][4096];
+*/
+
+double  penaltyEF[10][4096];
 
 
 
@@ -251,13 +255,13 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
   i = 1;
   if (!*data)
    {
-     if (*(data - 1) > UNCALLED) ++ *uncalled;
+     if (  __builtin_popcount (*(data - 1)) > 1) ++ *uncalled;
      return (i);
    }
 
   while (*data)
    {
-     if (*(data - 1) > UNCALLED) ++ (*uncalled);
+     if (  __builtin_popcount (*(data - 1)) > 1) ++ (*uncalled);
      if (*(data - 1) <= sw->qual_thres  && *data <= sw->qual_thres)
       {
         *data   = 0;
@@ -268,7 +272,7 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
      ++ i;
      ++ data;
    }
-  if (*(data - 1) > UNCALLED) ++ (*uncalled);
+  if ( __builtin_popcount (*(data - 1)) > 1) ++ (*uncalled);
   *uncalled = (*uncalled) / i;
   return (i);
 }
@@ -306,7 +310,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
   data = read->data;
   for (i = len - 1; i > 0; -- i)
    {
-     if (data[i] > UNCALLED) ++ *uncalled;
+     if (__builtin_popcount (data[i]) > 1) ++ *uncalled;
      if (qscore[i] <= sw->qual_thres && qscore[i - 1] <= sw->qual_thres)
       {
         qscore[i - 1] = 0;
@@ -317,7 +321,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
         return (len - i);
       }
    }
-  if (*data > UNCALLED) ++ *uncalled;
+  if (__builtin_popcount (*data) > 1) ++ *uncalled;
   *uncalled = (*uncalled) / len;
   return (len);
 }
@@ -374,34 +378,53 @@ static void init_scores (struct emp_freq * ef)
         new_neq[k] = PEAR_MISMATCH_SCORE * (1 - (1.0 / 3.0) * (1 - ex) * ey - (1.0 / 3.0) * (1 - ey) * ex - (2.0 / 9.0) * ex * ey);
         //qs_mul[i][j] = ex * ey;
 
+/*
         new_eqA[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pcgt2 / p2cgt;
         new_eqC[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pagt2 / p2agt;
         new_eqG[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pact2 / p2act;
         new_eqT[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pacg2 / p2acg;
+*/
+        /* compute the penalties for empirical frequencies
 
+           0 = A
+           1 = C
+           2 = G
+           3 = T
+           4 = AC
+           5 = AG
+           6 = AT
+           7 = CG
+           8 = CT
+           9 = GT
+        */
+        penaltyEF[0][k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pcgt2 / p2cgt;
+        penaltyEF[1][k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pagt2 / p2agt;
+        penaltyEF[2][k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pact2 / p2act;
+        penaltyEF[3][k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pacg2 / p2acg;
         //new_neqAC[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2);
-        new_diff[0][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2); // AC
+        penaltyEF[4][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2); // AC
         //sc_neqCA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pagt) - (1 - ex) * ey * (ef->pc / pcgt) - ex * ey * (pg2 + pt2) / pgt2);
 
         //new_neqAG[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2);
-        new_diff[1][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2); // AG
+        penaltyEF[5][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2); // AG
         //sc_neqGA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pact) - (1 - ex) * ey * (ef->pg / pcgt) - ex * ey * (pc2 + pt2) / pct2);
 
         //new_neqAT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2);
-        new_diff[2][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2); // AT
+        penaltyEF[6][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2); // AT
         //sc_neqTA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pacg) - (1 - ex) * ey * (ef->pt / pcgt) - ex * ey * (pc2 + pg2) / pcg2);
 
         //new_neqCG[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2);
-        new_diff[3][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2); // CG
+        penaltyEF[7][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2); // CG
         //sc_neqGC[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pc / pact) - (1 - ex) * ey * (ef->pg / pagt) - ex * ey * (pa2 + pt2) / pat2);
 
         //new_neqCT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2);
-        new_diff[4][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2); // CT
+        penaltyEF[8][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2); // CT
         //sc_neqTC[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pc / pacg) - (1 - ex) * ey * (ef->pt / pagt) - ex * ey * (pa2 + pg2) / pag2);
 
         //new_neqGT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2);
-        new_diff[5][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2); // GT
+        penaltyEF[9][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2); // GT
         //sc_neqTG[i][j] = mismatch * (1 - (1 - ey) * ex * (ef->pg / pacg) - (1 - ex) * ey * (ef->pt / pact) - ex * ey * (pa2 + pc2) / pac2);
+
 
      }
    }
@@ -413,7 +436,7 @@ scoring_ef (char dleft, char dright, char qleft, char qright, int score_method, 
 {
   double tmp;
 
-  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
+  if (__builtin_popcount(dleft) > 1 || __builtin_popcount(dright) > 1)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -706,7 +729,7 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
   double tmp;
   int i, k;
 
-  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
+  if ( (__builtin_popcount (dleft) > 1) || __builtin_popcount (dright) > 1)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -729,72 +752,22 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
    }
   else if (dleft == dright)     /* equal */
    {
+     i = translate[dleft | dright];
+     assert (i != -1);
+     k = ((int)qright << 6) | (int)qleft;
      switch (score_method)
       {
         case 1:
-          k = ((int)qright << 6) | (int)qleft;
-          switch (dleft)
-           {
-             case 1: //'A':
-               *score += (new_eqA[k] - (1 - new_eqA[k]));
-               break;
-             case 2: //'C':
-               *score += (new_eqC[k] - (1 - new_eqC[k]));
-               break;
-             case 4: //'G':
-               *score += (new_eqG[k] - (1 - new_eqG[k]));
-               break;
-             case 8: // 'T':
-               *score += (new_eqT[k] - (1 - new_eqT[k]));
-               break;
-             default:
-               assert(0);
-           }
+          *score += (penaltyEF[i][k] - (1 - penaltyEF[i][k]));
           *oes    = *score;
           break;
+
         case 2:
-          k = ((int)qright << 6) | (int)qleft;
-          switch (dleft)
-           {
-             case 1: //'A':
-               *score += new_eqA[k];
-               *oes += (new_eqA[k] - (1 - new_eqA[k]));
-               break;
-             case 2: // 'C':
-               *score += new_eqC[k];
-               *oes   += (new_eqC[k] - (1 - new_eqC[k]));
-               break;
-             case 4: // 'G':
-               *score += new_eqG[k];
-               *oes   += (new_eqG[k] - (1 - new_eqG[k]));
-               break;
-             case 8: //'T':
-               *score += new_eqT[k];
-               *oes   += (new_eqT[k] - (1 - new_eqT[k]));
-               break;
-             default:
-               assert(0);
-           }
+          *score += penaltyEF[i][k];
+          *oes   += (penaltyEF[i][k] - (1 - penaltyEF[i][k]));
           break;
         case 3:
-          k = ((int)qright << 6) | (int)qleft;
-          switch (dleft)
-           {
-             case 1: //'A':
-               *oes += (new_eqA[k] - (1 - new_eqA[k]));
-               break;
-             case 2: //'C':
-               *oes += (new_eqC[k] - (1 - new_eqC[k]));
-               break;
-             case 4: //'G':
-               *oes += (new_eqG[k] - (1 - new_eqG[k]));
-               break;
-             case 8: //'T':
-               *oes += (new_eqT[k] - (1 - new_eqT[k]));
-               break;
-             default:
-               assert(0);
-           }
+          *oes += (penaltyEF[i][k] - (1 - penaltyEF[i][k]));
           *score += 1;
           break;
         default:
@@ -813,22 +786,27 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
         
       }
      i = translate[dleft | dright];
+     if (i == -1)
+      {
+        printf ("dleft: %d\n dright: %d\n", dleft, dright);
+      }
+     assert (i != -1);
      k = ((int)qleft << 6) | (int)qright;
      switch (score_method)
       {
         case 1:
-          *score = *score - new_diff[i][k] - (1 - new_diff[i][k]);
+          *score -= 1;
           *oes = *score;
           break;
 
         case 2:
-          *score -= new_diff[i][k];;
-          *oes = *oes - (new_diff[i][k] - (1 - new_diff[i][k]));
+          *score -= penaltyEF[i][k];
+          *oes = *oes - 1;
           break;
 
         case 3:
           *score -= 1;
-          *oes = *oes - (new_diff[i][k] - (1 - new_diff[i][k]));
+          *oes = *oes - 1;
           break;
         default:
           assert (0);
@@ -909,7 +887,7 @@ static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright,
   int k;
 
   k = ((int)qright << 6) | (int)qleft;
-  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
+  if (__builtin_popcount (dleft) > 1 || __builtin_popcount(dright) > 1)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -1111,9 +1089,9 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if (forward->data[j] > UNCALLED)  ++uncalled;
+            if ( __builtin_popcount(forward->data[j]) > 1)  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (reverse->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1131,15 +1109,15 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (forward->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (reverse->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((forward->data[j] > UNCALLED) && (reverse->data[j - nForward + best_overlap] > UNCALLED))  ++uncalled;
+            if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nForward + best_overlap]) > 1))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1170,11 +1148,11 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
        /* count uncalled bases in the non-overlapping high-quality part of the forward read */
        for (j = 0; j < best_overlap; ++ j)
-         if (forward->data[j] > UNCALLED)  ++uncalled;
+         if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = best_overlap; j < best_overlap + nReverse; ++ j)
-         if ((forward->data[j] > UNCALLED) && (reverse->data[j - nReverse - best_overlap] > UNCALLED))  ++uncalled;
+         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nReverse - best_overlap]) > 1))  ++uncalled;
        uncalled /= asm_len;
 
        if (nReverse >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1196,7 +1174,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap + j] > UNCALLED)) ++uncalled;
+         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap + j]) > 1)) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1310,9 +1288,9 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         asm_len = 2 * n;
 
         for (j = 0; j < n; ++ j)
-          if (forward->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (reverse->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1329,7 +1307,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((forward->data[j] > UNCALLED) && (reverse->data[j] > UNCALLED)) ++uncalled;
+          if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j]) > 1)) ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1348,11 +1326,11 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
       {
         asm_len = 2 * n - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (forward->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((forward->data[j] > UNCALLED) && (reverse->data[j - n + best_overlap] > UNCALLED))  ++uncalled;
+          if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - n + best_overlap]) > 1))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (reverse->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1381,7 +1359,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((forward->data[j] > UNCALLED) && (reverse->data[n - best_overlap + j] > UNCALLED)) ++uncalled;
+       if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[n - best_overlap + j]) > 1)) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1529,9 +1507,9 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if (forward->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (reverse->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1549,15 +1527,15 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (forward->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (reverse->data[j] > UNCALLED)  ++uncalled;
+            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((forward->data[j] > UNCALLED) && (reverse->data[j - nForward + best_overlap] > UNCALLED))  ++uncalled;
+            if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nForward + best_overlap]) > 1))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1588,11 +1566,11 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
 
        /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
        for (j = nReverse - best_overlap; j < nReverse; ++ j)
-         if (reverse->data[j] > UNCALLED)  ++uncalled;
+         if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = 0; j < nForward; ++ j)
-         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap - nForward + j] > UNCALLED))  ++uncalled;
+         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap - nForward + j]) > 1))  ++uncalled;
        uncalled /= asm_len;
 
        if (nForward >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1617,7 +1595,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap + j] > UNCALLED)) ++uncalled;
+         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap + j]) > 1)) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1756,9 +1734,9 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         asm_len = (n << 1);
 
         for (j = 0; j < n; ++ j)
-          if (left->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(left->data[j]) > 1)  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (right->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(right->data[j]) > 1)  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1775,7 +1753,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((left->data[j] > UNCALLED) && (right->data[j] > UNCALLED)) ++uncalled;
+          if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[j]) > 1)) ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1794,11 +1772,11 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
       {
         asm_len = (n << 1) - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (left->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(left->data[j]) > 1)  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((left->data[j] > UNCALLED) && (right->data[j - n + best_overlap] > UNCALLED))  ++uncalled;
+          if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[j - n + best_overlap]) > 1))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (right->data[j] > UNCALLED)  ++uncalled;
+          if (__builtin_popcount(right->data[j]) > 1)  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1826,7 +1804,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((left->data[j] > UNCALLED) && (right->data[n - best_overlap + j] > UNCALLED)) ++uncalled;
+       if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[n - best_overlap + j]) > 1)) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1874,19 +1852,19 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
      y  = right->data[base_right + i];
      qx = left->qscore[base_left + i];
      qy = right->qscore[base_right + i];
-     if ((x > UNCALLED) && (y > UNCALLED))
+     if ((__builtin_popcount(x) > 1) && (__builtin_popcount(y) > 1))
       {
         //exp_match += 0.25; sm_len
         ai->data[base_left + i]   = x | y;
         ai->qscore[base_left + i] = ( qx < qy ) ? qx : qy;
       }
-     else if (x > UNCALLED)
+     else if (__builtin_popcount(x) > 1)
       {
         //exp_match += 0.25; 
         ai->data[base_left + i]   = y;
         ai->qscore[base_left + i] = qy;
       }
-     else if (y > UNCALLED)
+     else if (__builtin_popcount(y) > 1)
       {
         //exp_match += 0.25; 
         ai->data[base_left + i]          = x;

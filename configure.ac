@@ -8,7 +8,7 @@ AC_CONFIG_SRCDIR([src/pear-pt.c])
 AC_CONFIG_HEADERS([src/config.h])
 
 if test -z $CFLAGS; then
-    CFLAGS=''
+    CFLAGS='-O3'
 fi
 
 # Checks for programs.
