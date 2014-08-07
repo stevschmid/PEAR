@@ -40,6 +40,8 @@
 #define         PEAR_MERGE_TRIM_BOTH            3
 #define         PEAR_MERGE_TRIM_REVERSE         4
 
+#define         DEGENERATE(x) (((x) ^ 1) && ((x) ^ 2) && ((x) ^ 4) && ((x) ^ 8))
+
 char map_nt[256] = 
  {
    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -255,13 +257,13 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
   i = 1;
   if (!*data)
    {
-     if (  __builtin_popcount (*(data - 1)) > 1) ++ *uncalled;
+     if (DEGENERATE (*(data - 1))) ++ *uncalled;
      return (i);
    }
 
   while (*data)
    {
-     if (  __builtin_popcount (*(data - 1)) > 1) ++ (*uncalled);
+     if (DEGENERATE(*(data - 1))) ++ (*uncalled);
      if (*(data - 1) <= sw->qual_thres  && *data <= sw->qual_thres)
       {
         *data   = 0;
@@ -272,7 +274,7 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
      ++ i;
      ++ data;
    }
-  if ( __builtin_popcount (*(data - 1)) > 1) ++ (*uncalled);
+  if (DEGENERATE(*(data - 1))) ++ (*uncalled);
   *uncalled = (*uncalled) / i;
   return (i);
 }
@@ -310,7 +312,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
   data = read->data;
   for (i = len - 1; i > 0; -- i)
    {
-     if (__builtin_popcount (data[i]) > 1) ++ *uncalled;
+     if (DEGENERATE (data[i])) ++ *uncalled;
      if (qscore[i] <= sw->qual_thres && qscore[i - 1] <= sw->qual_thres)
       {
         qscore[i - 1] = 0;
@@ -321,7 +323,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
         return (len - i);
       }
    }
-  if (__builtin_popcount (*data) > 1) ++ *uncalled;
+  if (DEGENERATE (*data)) ++ *uncalled;
   *uncalled = (*uncalled) / len;
   return (len);
 }
@@ -436,7 +438,7 @@ scoring_ef (char dleft, char dright, char qleft, char qright, int score_method, 
 {
   double tmp;
 
-  if (__builtin_popcount(dleft) > 1 || __builtin_popcount(dright) > 1)       /* one of them is N */
+  if (DEGENERATE(dleft) || DEGENERATE(dright))       /* one of them is N */
    {
      switch (score_method)
       {
@@ -729,7 +731,7 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
   double tmp;
   int i, k;
 
-  if ( (__builtin_popcount (dleft) > 1) || __builtin_popcount (dright) > 1)       /* one of them is N */
+  if ( (DEGENERATE (dleft)) || DEGENERATE (dright))       /* one of them is N */
    {
      switch (score_method)
       {
@@ -887,7 +889,7 @@ static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright,
   int k;
 
   k = ((int)qright << 6) | (int)qleft;
-  if (__builtin_popcount (dleft) > 1 || __builtin_popcount(dright) > 1)       /* one of them is N */
+  if (DEGENERATE (dleft) || DEGENERATE(dright))       /* one of them is N */
    {
      switch (score_method)
       {
@@ -1089,9 +1091,9 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if ( __builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+            if ( DEGENERATE(forward->data[j]))  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(reverse->data[j]))  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1109,15 +1111,15 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(forward->data[j]))  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(reverse->data[j]))  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nForward + best_overlap]) > 1))  ++uncalled;
+            if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[j - nForward + best_overlap])))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1148,11 +1150,11 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
        /* count uncalled bases in the non-overlapping high-quality part of the forward read */
        for (j = 0; j < best_overlap; ++ j)
-         if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+         if (DEGENERATE(forward->data[j]))  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = best_overlap; j < best_overlap + nReverse; ++ j)
-         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nReverse - best_overlap]) > 1))  ++uncalled;
+         if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[j - nReverse - best_overlap])))  ++uncalled;
        uncalled /= asm_len;
 
        if (nReverse >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1174,7 +1176,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap + j]) > 1)) ++uncalled;
+         if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[nReverse - best_overlap + j]))) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1288,9 +1290,9 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         asm_len = 2 * n;
 
         for (j = 0; j < n; ++ j)
-          if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(forward->data[j]))  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(reverse->data[j]))  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1307,7 +1309,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j]) > 1)) ++uncalled;
+          if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[j]))) ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1326,11 +1328,11 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
       {
         asm_len = 2 * n - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(forward->data[j]))  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - n + best_overlap]) > 1))  ++uncalled;
+          if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[j - n + best_overlap])))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(reverse->data[j]))  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1359,7 +1361,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[n - best_overlap + j]) > 1)) ++uncalled;
+       if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[n - best_overlap + j]))) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1507,9 +1509,9 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(forward->data[j]))  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(reverse->data[j]))  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1527,15 +1529,15 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (__builtin_popcount(forward->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(forward->data[j]))  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+            if (DEGENERATE(reverse->data[j]))  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[j - nForward + best_overlap]) > 1))  ++uncalled;
+            if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[j - nForward + best_overlap])))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1566,11 +1568,11 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
 
        /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
        for (j = nReverse - best_overlap; j < nReverse; ++ j)
-         if (__builtin_popcount(reverse->data[j]) > 1)  ++uncalled;
+         if (DEGENERATE(reverse->data[j]))  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = 0; j < nForward; ++ j)
-         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap - nForward + j]) > 1))  ++uncalled;
+         if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[nReverse - best_overlap - nForward + j])))  ++uncalled;
        uncalled /= asm_len;
 
        if (nForward >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1595,7 +1597,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((__builtin_popcount(forward->data[j]) > 1) && (__builtin_popcount(reverse->data[nReverse - best_overlap + j]) > 1)) ++uncalled;
+         if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[nReverse - best_overlap + j]))) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1734,9 +1736,9 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         asm_len = (n << 1);
 
         for (j = 0; j < n; ++ j)
-          if (__builtin_popcount(left->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(left->data[j]))  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (__builtin_popcount(right->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(right->data[j]))  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1753,7 +1755,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[j]) > 1)) ++uncalled;
+          if ((DEGENERATE(left->data[j])) && (DEGENERATE(right->data[j]))) ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1772,11 +1774,11 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
       {
         asm_len = (n << 1) - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (__builtin_popcount(left->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(left->data[j]))  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[j - n + best_overlap]) > 1))  ++uncalled;
+          if ((DEGENERATE(left->data[j])) && (DEGENERATE(right->data[j - n + best_overlap])))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (__builtin_popcount(right->data[j]) > 1)  ++uncalled;
+          if (DEGENERATE(right->data[j]))  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1804,7 +1806,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((__builtin_popcount(left->data[j]) > 1) && (__builtin_popcount(right->data[n - best_overlap + j]) > 1)) ++uncalled;
+       if ((DEGENERATE(left->data[j])) && (DEGENERATE(right->data[n - best_overlap + j]))) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1852,19 +1854,19 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
      y  = right->data[base_right + i];
      qx = left->qscore[base_left + i];
      qy = right->qscore[base_right + i];
-     if ((__builtin_popcount(x) > 1) && (__builtin_popcount(y) > 1))
+     if ((DEGENERATE(x)) && (DEGENERATE(y)))
       {
         //exp_match += 0.25; sm_len
         ai->data[base_left + i]   = x | y;
         ai->qscore[base_left + i] = ( qx < qy ) ? qx : qy;
       }
-     else if (__builtin_popcount(x) > 1)
+     else if (DEGENERATE(x))
       {
         //exp_match += 0.25; 
         ai->data[base_left + i]   = y;
         ai->qscore[base_left + i] = qy;
       }
-     else if (__builtin_popcount(y) > 1)
+     else if (DEGENERATE(y))
       {
         //exp_match += 0.25; 
         ai->data[base_left + i]          = x;
