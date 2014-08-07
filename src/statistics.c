@@ -1,11 +1,12 @@
-#include <stdio.h>
 /** @file statistics.h
   */
-
+#include <stdio.h>
+#include "pear.h"
 #include "pvalue.h"
 extern int match_score;
 extern int mismatch_score;
 
+int stat_test2 (double pval, double oes, int min_overlap, double q);
 /** @brief  test
   *
   *  Statistical test
@@ -22,6 +23,7 @@ extern int mismatch_score;
   * @param q
   *  The probability of random base match
   */
+  /*
 int
 stat_test (double pval, double f, int min_overlap, double q)
 {
@@ -56,6 +58,7 @@ stat_test (double pval, double f, int min_overlap, double q)
 
   return (0);
 }
+*/
 
 /*
 int stat_test2 (double pval, double oes, int min_overlap, double q)

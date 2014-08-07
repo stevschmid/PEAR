@@ -1,6 +1,5 @@
 #ifndef ASYNC_H
 #define ASYNC_H
-
 #include "args.h"
 #include "reader.h"
 #include "emp.h"

@@ -2,6 +2,7 @@
 #define ARGS_H
 #include <stdio.h>
 #include <getopt.h>
+#include "pear.h"
 
 /** @file args.h
     @brief Header file for command-line arguments

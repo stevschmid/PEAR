@@ -2,10 +2,14 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.67])
-AC_INIT([pear], [1.0.0], [Tomas.Flouri@h-its.org])
+AC_INIT([pear], [0.9.4], [Tomas.Flouri@h-its.org])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/pear-pt.c])
-AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_HEADERS([src/config.h])
+
+if test -z $CFLAGS; then
+    CFLAGS=''
+fi
 
 # Checks for programs.
 AC_PROG_CC
@@ -32,12 +36,19 @@ AC_CHECK_FUNCS([memmove pow strtol])
 
 
 have_pthreads=no
+have_bzlib=no
 AC_SEARCH_LIBS([pthread_create], [pthread], [have_pthreads=yes])
+AC_SEARCH_LIBS([BZ2_bzCompress], [bz2], [have_bzlib=yes])
 
 if test "x${have_pthreads}" = "xyes"; then
   AC_CHECK_HEADERS([pthread.h], [], [have_pthreads=no])
 fi
 
+if test "x${have_bzlib}" = "xyes"; then
+  AC_CHECK_HEADERS([bzlib.h], [], [have_bzlib=no])
+fi
+
+AM_CONDITIONAL(HAVE_BZLIB, test, "x${have_pthreads}" = "xyes")
 AM_CONDITIONAL(HAVE_PTHREADS, test "x${have_pthreads}" = "xyes")
 AM_PROG_CC_C_O
 

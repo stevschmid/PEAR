@@ -40,13 +40,71 @@
 #define         PEAR_MERGE_TRIM_BOTH            3
 #define         PEAR_MERGE_TRIM_REVERSE         4
 
+char map_nt[256] = 
+ {
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 15, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 15,
+   -1,  1, 14,  2, 13, -1, -1,  4, 11, -1, -1, 12, -1,  3, 15, 15,
+   -1, -1,  5,  6,  8,  8,  7,  9, 15, 10, -1, -1, -1, -1, -1, -1,
+   -1,  1, 14,  2, 13, -1, -1,  4, 11, -1, -1, 12, -1,  3, 15, 15,
+   -1, -1,  5,  6,  8,  8,  7,  9, 15, 10, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+   -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+ };
+
+/* reverse mapping of number to nucleotide */
+char revmap_nt[16] = 
+ {
+   '\0', 'A', 'C', 'M', 'G', 'R', 'S', 'V', 
+   'T',  'W', 'Y', 'H', 'K', 'D', 'B', 'N'
+ };
+
+/* complements of the nucleotides */
+char cpl_nt[16]   =   {0, 8, 4, 3, 2, 5, 6, 7, 1, 9, 10, 11, 12, 13, 14, 15};
+
+/* translate from a 4-bit code to a table of 6 entries (AC, AG, AT, CG, CT, GT) */
+int translate[16] =  {-1, -1, -1, 0, -1, 1, 3, -1, -1, 2,  4, -1,  5, -1, -1, -1};
+
+#define UNCALLED 8              /* degenerate bases start from 9 */
 
 extern void print_number (size_t x);
 
 static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled);
 static int trim (fastqRead * read, struct user_args * sw, double * uncalled);
-static void init_scores (int phred_base, struct emp_freq * ef);
+static void init_scores (struct emp_freq * ef);
 static char * makefilename (const char * prefix, const char * suffix);
+static void mstrcpl (char * s);
+static void mstrrev (char * s);
+static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse);
+static void * entry_point_ef (void * data);
+static void * entry_point (void * data);
+static void DisplayInstance (struct user_args * sw);
+static void free_global_thread_memory (void);
+static void close_output_files (void);
+static void destroy_thr_global (void);
+static void fatal(const char * msg);
+#if 0
+static int validate_input (int nleft, int nright);
+#endif
+static void * emp_entry_point (void * data);
+static void init_thr_global (void);
+static INLINE int assembly_ef (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw);
+static void flip_list (void);
+static INLINE int assign_reads (memBlockInfo * block, struct thread_local_t * thr_local);
+static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse);
+static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int n);
+static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** fd, struct user_args * sw);
+static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_args  * sw);
+static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes);
+static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, struct emp_freq * ef);
 
 static char * outfile_extensions[NUM_OF_OUTFILES] = { ".assembled.fastq", 
                                                       ".unassembled.forward.fastq", 
@@ -54,8 +112,15 @@ static char * outfile_extensions[NUM_OF_OUTFILES] = { ".assembled.fastq",
                                                       ".discarded.fastq" };
 
 static char * sanityCheckMessage[2] = {
- "\n[!!] Forward reads file contains more lines. Merging is done line-by-line on both files and remaining reads in forward file are ignored. You are strongly advised to check that corresponding paired-end reads are located at the same line numbers in your files.\n\n",
- "\n[!!] Reverse reads file contains more lines. Merging is done line-by-line on both files and remaining reads in reverse file are ignored. You are strongly advised to check that corresponding paired-end reads are located at the same line numbers in your files.\n\n" };
+ "\n[!!] Forward reads file contains more lines. Merging is done line-by-line"
+ "on both files and remaining reads in forward file are ignored. You are"
+ "strongly advised to check that corresponding paired-end reads are located at"
+ "the same line numbers in your files.\n\n",
+ "\n[!!] Reverse reads file contains more lines. Merging is done line-by-line"
+ "on both files and remaining reads in reverse file are ignored. You are"
+ "strongly advised to check that corresponding paired-end reads are located at"
+ "the same line numbers in your files.\n\n"
+};
 
 static pthread_mutex_t cs_mutex_wnd  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t cs_mutex_io   = PTHREAD_MUTEX_INITIALIZER;
@@ -81,47 +146,103 @@ static unsigned long g_count_total       = 0;
 //int stat_test (double, double, int, double);
 int stat_test2 (double, double, int, double);
 
-double
-assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai, struct user_args * sw);
+static double assemble_overlap (fastqRead * left, 
+                         fastqRead * right, 
+                         int base_left, 
+                         int base_right, 
+                         int ol_size, 
+                         fastqRead * ai);
 
-/* TODO: 1. Dynamically allocate them 
- *       2. Change 256 to the allowed range and compute only the necessary values */
-double      sc_eq[256][256];
-double     sc_neq[256][256];
-double     sc_eqA[256][256];
-double     sc_eqC[256][256];
-double     sc_eqG[256][256];
-double     sc_eqT[256][256];
-double   sc_neqAC[256][256];
-double   sc_neqAG[256][256];
-double   sc_neqAT[256][256];
-double   sc_neqCG[256][256];
-double   sc_neqCT[256][256];
-double   sc_neqGT[256][256];
+double      new_eq[4096];
+double     new_neq[4096];
+double     new_eqA[4096];
+double     new_eqC[4096];
+double     new_eqG[4096];
+double     new_eqT[4096];
+
+double  new_diff[6][4096];
+
+
+
+static void fatal(const char * msg)
+{
+  fprintf(stderr, "Error: %s\n", msg);
+  exit(1);
+}
+
+static void convert(char * s)
+{
+  char c;
+  char m;
+  char * p = s;
+  int i = 0;
+
+  while ((c = *p++))
+   {
+     if ((m = map_nt[(int)c]) >= 0)
+        *(s + i++) = m;
+     else
+        fatal("Illegal character in sequence.");
+   }
+}
+
+static void revconvert(char * s)
+{
+  char c;
+  char * p = s;
+  int i = 0;
+
+  while ((c = *p++))
+     *(s + i++) = revmap_nt[(int)c];
+}
+
+static void remove_base_qscores (char * s, int base)
+{
+  while (*s)
+   {
+     *s = *s - base + 1;   /* qscores must start from 1 to distinguish end-of-string */
+     ++s;
+   }
+}
+
+static void add_base_qscores (char * s, int base, int cap)
+{
+  if (cap)
+   {
+     cap = cap + 1;
+     while (*s)
+      {
+        if (*s > cap) *s = cap;
+        *s = *s + base - 1;
+        ++s;
+      }
+   }
+  else
+    while (*s)
+     {
+       *s = *s + base - 1;
+       ++s;
+     }
+}
+
 
 /** @brief Trimming of forward part of unassembled sequence
   *
   * Finds two adjacent quality scores that are smaller than the minimum quality score threshold \a min_quality.
   * It then \e trims the part starting from the rightmost quality score position.
   *
-  * @param read
-  *   Forward sequence
-  *
-  * @param min_quality
-  *   Minimum quality score threshold
-  *
-  * @param uncalled
-  *   Variable to store the ratio of uncalled bases
-  *
-  * @return
-  *   Returns the length of the trimmed sequence
-  */
-static int
-trim (fastqRead * read, struct user_args * sw, double * uncalled)
+  * @param read          Forward sequence
+  * @param min_quality   Minimum quality score threshold
+  * @param uncalled      Variable to store the ratio of uncalled bases
+  * @return              Returns the length of the trimmed sequence
+*/
+static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
 {
-  int                   i;
-  char                * qscore;
-  char                * data;
+  int 
+   i;
+  char  
+    * qscore,
+    * data;
 
   qscore = read->qscore + 1;
   data   = read->data   + 1;
@@ -130,14 +251,14 @@ trim (fastqRead * read, struct user_args * sw, double * uncalled)
   i = 1;
   if (!*data)
    {
-     if (*(data - 1) == 'N' || *(data - 1) == 'n') ++ *uncalled;
+     if (*(data - 1) > UNCALLED) ++ *uncalled;
      return (i);
    }
 
   while (*data)
    {
-     if (*(data - 1) == 'N' || *(data - 1) == 'n') ++ (*uncalled);
-     if (*(data - 1) - sw->phred_base < sw->qual_thres && *data - sw->phred_base < sw->qual_thres)
+     if (*(data - 1) > UNCALLED) ++ (*uncalled);
+     if (*(data - 1) <= sw->qual_thres  && *data <= sw->qual_thres)
       {
         *data   = 0;
         *qscore = 0;
@@ -147,7 +268,7 @@ trim (fastqRead * read, struct user_args * sw, double * uncalled)
      ++ i;
      ++ data;
    }
-  if (*(data - 1) == 'N' || *(data - 1) == 'n') ++ (*uncalled);
+  if (*(data - 1) > UNCALLED) ++ (*uncalled);
   *uncalled = (*uncalled) / i;
   return (i);
 }
@@ -157,25 +278,19 @@ trim (fastqRead * read, struct user_args * sw, double * uncalled)
   * Finds two adjacent quality scores that are smaller than the minimum quality score threshold \a min_quality.
   * It then \e trims the part starting from the rightmost quality score position.
   *
-  * @param read
-  *   Forward sequence
-  *
-  * @param min_quality
-  *   Minimum quality score threshold
-  *
-  * @param uncalled
-  *   Variable to store the ratio of uncalled bases
-  *
-  * @return
-  *   Returns the length of the trimmed sequence
+  * @param read         Forward sequence
+  * @param min_quality  Minimum quality score threshold
+  * @param uncalled     Variable to store the ratio of uncalled bases
+  * @return             Returns the length of the trimmed sequence
   */
-static int
-trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
+static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
 {
-  int                   i;
-  char                * qscore;
-  char                * data;
-  int                   len;
+  int
+   i,
+   len;
+  char
+    * qscore,
+    * data;
 
   qscore = read->qscore;
   data   = read->data;
@@ -191,8 +306,8 @@ trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
   data = read->data;
   for (i = len - 1; i > 0; -- i)
    {
-     if (data[i] == 'N' || data[i] == 'n') ++ *uncalled;
-     if (qscore[i] - sw->phred_base < sw->qual_thres && qscore[i - 1] - sw->phred_base < sw->qual_thres)
+     if (data[i] > UNCALLED) ++ *uncalled;
+     if (qscore[i] <= sw->qual_thres && qscore[i - 1] <= sw->qual_thres)
       {
         qscore[i - 1] = 0;
         data[i - 1]   = 0;
@@ -202,7 +317,7 @@ trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
         return (len - i);
       }
    }
-  if (*data == 'N' || *data == 'n') ++ *uncalled;
+  if (*data > UNCALLED) ++ *uncalled;
   *uncalled = (*uncalled) / len;
   return (len);
 }
@@ -210,27 +325,23 @@ trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
 /** @brief Initialize table of precomputed scores
     
     This function computes a table of scores for every possible combination of
-    basepair and quality scores. The element \a sc_eqX[i][j] is the score
-    for a basepair \a X with quality scores \a i and \j in the two sequences.
-    The element \a sc_neqXY[i][j] is the score of basepairs \a X and \a Y with
+    basepair and quality scores. The element \a sc_eqX[i][j] is the score for a
+    basepair \a X with quality scores \a i and \j in the two sequences.  The
+    element \a sc_neqXY[i][j] is the score of basepairs \a X and \a Y with
     quality scores \a i and \j, respectively.
 
-    @param match
-      The match weight to be used in scoring
-
-    @param mismatch
-      The mismatch weight to be used in scoring
-
-    @param ef
-      Structure containing empirical frequencies
+    @param match     The match weight to be used in scoring
+    @param mismatch  The mismatch weight to be used in scoring
+    @param ef        Structure containing empirical frequencies
 */
-static void init_scores (int phred_base, struct emp_freq * ef)
+static void init_scores (struct emp_freq * ef)
 {
-  int           i, j;
-  double        ex, ey;
-  double        pa2, pc2, pg2, pt2, pagt2, pcgt2, pact2, pacg2, pacg, pact, pagt, pcgt;
-  double        pac2, pag2, pat2, pcg2, pct2, pgt2;
-  double        p2acg, p2act, p2agt, p2cgt;
+  int i, j, k;
+  double        
+    ex, ey,
+    pa2,   pc2,   pg2,   pt2,   pagt2, pcgt2, pact2, pacg2, pacg, pact, pagt, pcgt,
+    pac2,  pag2,  pat2,  pcg2,  pct2,  pgt2,
+    p2acg, p2act, p2agt, p2cgt;
 
   pa2 = ef->pa * ef->pa;
   pc2 = ef->pc * ef->pc;
@@ -250,38 +361,46 @@ static void init_scores (int phred_base, struct emp_freq * ef)
   pgt2 = (ef->pg + ef->pt) * (ef->pg + ef->pt);
 
 
-  for (i = 0; i < 256; ++ i)
+  for (i = 1; i < 64; ++ i)
    {
-     for (j = 0; j < 256; ++ j) 
+     for (j = 1; j < 64; ++ j) 
       {
-        ex = pow (10.0, - (i - phred_base) / 10.0);
-        ey = pow (10.0, - (j - phred_base) / 10.0);
+        ex = pow (10.0, - (i - 1) / 10.0);
+        ey = pow (10.0, - (j - 1) / 10.0);
 
-        sc_eq[i][j]  =    PEAR_MATCH_SCORE * ((1 - ex) * (1 - ey) + (ex * ey) / 3.0);
-        sc_neq[i][j] = PEAR_MISMATCH_SCORE * (1 - (1.0 / 3.0) * (1 - ex) * ey - (1.0 / 3.0) * (1 - ey) * ex - (2.0 / 9.0) * ex * ey);
+        k = (i << 6) | j;
+
+        new_eq[k]  =    PEAR_MATCH_SCORE * ((1 - ex) * (1 - ey) + (ex * ey) / 3.0);
+        new_neq[k] = PEAR_MISMATCH_SCORE * (1 - (1.0 / 3.0) * (1 - ex) * ey - (1.0 / 3.0) * (1 - ey) * ex - (2.0 / 9.0) * ex * ey);
         //qs_mul[i][j] = ex * ey;
 
-        sc_eqA[i][j] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pcgt2 / p2cgt;
-        sc_eqC[i][j] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pagt2 / p2agt;
-        sc_eqG[i][j] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pact2 / p2act;
-        sc_eqT[i][j] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pacg2 / p2acg;
+        new_eqA[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pcgt2 / p2cgt;
+        new_eqC[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pagt2 / p2agt;
+        new_eqG[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pact2 / p2act;
+        new_eqT[k] = PEAR_MATCH_SCORE * (1 - ex) * (1 - ey) + (ex * ey) * pacg2 / p2acg;
 
-        sc_neqAC[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2);
+        //new_neqAC[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2);
+        new_diff[0][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pc / pcgt) - (1 - ex) * ey * (ef->pa / pagt) - ex * ey * (pg2 + pt2) / pgt2); // AC
         //sc_neqCA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pagt) - (1 - ex) * ey * (ef->pc / pcgt) - ex * ey * (pg2 + pt2) / pgt2);
 
-        sc_neqAG[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2);
+        //new_neqAG[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2);
+        new_diff[1][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pcgt) - (1 - ex) * ey * (ef->pa / pact) - ex * ey * (pc2 + pt2) / pct2); // AG
         //sc_neqGA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pact) - (1 - ex) * ey * (ef->pg / pcgt) - ex * ey * (pc2 + pt2) / pct2);
 
-        sc_neqAT[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2);
+        //new_neqAT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2);
+        new_diff[2][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pcgt) - (1 - ex) * ey * (ef->pa / pacg) - ex * ey * (pc2 + pg2) / pcg2); // AT
         //sc_neqTA[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pa / pacg) - (1 - ex) * ey * (ef->pt / pcgt) - ex * ey * (pc2 + pg2) / pcg2);
 
-        sc_neqCG[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2);
+        //new_neqCG[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2);
+        new_diff[3][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pg / pagt) - (1 - ex) * ey * (ef->pc / pact) - ex * ey * (pa2 + pt2) / pat2); // CG
         //sc_neqGC[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pc / pact) - (1 - ex) * ey * (ef->pg / pagt) - ex * ey * (pa2 + pt2) / pat2);
 
-        sc_neqCT[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2);
+        //new_neqCT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2);
+        new_diff[4][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pagt) - (1 - ex) * ey * (ef->pc / pacg) - ex * ey * (pa2 + pg2) / pag2); // CT
         //sc_neqTC[i][j] PEAR_MISMATCH_SCOREch * (1 - (1 - ey) * ex * (ef->pc / pacg) - (1 - ex) * ey * (ef->pt / pagt) - ex * ey * (pa2 + pg2) / pag2);
 
-        sc_neqGT[i][j] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2);
+        //new_neqGT[k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2);
+        new_diff[5][k] = PEAR_MISMATCH_SCORE * (1 - (1 - ey) * ex * (ef->pt / pact) - (1 - ex) * ey * (ef->pg / pacg) - ex * ey * (pa2 + pc2) / pac2); // GT
         //sc_neqTG[i][j] = mismatch * (1 - (1 - ey) * ex * (ef->pg / pacg) - (1 - ex) * ey * (ef->pt / pact) - ex * ey * (pa2 + pc2) / pac2);
 
      }
@@ -294,7 +413,7 @@ scoring_ef (char dleft, char dright, char qleft, char qright, int score_method, 
 {
   double tmp;
 
-  if (dleft == 'N' || dright == 'N')       /* one of them is N */
+  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -582,12 +701,12 @@ scoring_ef (char dleft, char dright, char qleft, char qright, int score_method, 
 }
 #endif
 
-INLINE void
-scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, struct emp_freq * ef)
+static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, struct emp_freq * ef)
 {
   double tmp;
+  int i, k;
 
-  if (dleft == 'N' || dright == 'N')       /* one of them is N */
+  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -604,6 +723,8 @@ scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_metho
           *score -= 1;
           *oes   += (ef->q - (1 - ef->q));
           break;
+        default:
+          assert (0);
       }
    }
   else if (dleft == dright)     /* equal */
@@ -611,300 +732,117 @@ scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_metho
      switch (score_method)
       {
         case 1:
+          k = ((int)qright << 6) | (int)qleft;
           switch (dleft)
            {
-             case 'A':
-               *score += (sc_eqA[(int)qright][(int)qleft] - (1 - sc_eqA[(int)qright][(int)qleft]));
+             case 1: //'A':
+               *score += (new_eqA[k] - (1 - new_eqA[k]));
                break;
-             case 'C':
-               *score += (sc_eqC[(int)qright][(int)qleft] - (1 - sc_eqC[(int)qright][(int)qleft]));
+             case 2: //'C':
+               *score += (new_eqC[k] - (1 - new_eqC[k]));
                break;
-             case 'G':
-               *score += (sc_eqG[(int)qright][(int)qleft] - (1 - sc_eqG[(int)qright][(int)qleft]));
+             case 4: //'G':
+               *score += (new_eqG[k] - (1 - new_eqG[k]));
                break;
-             case 'T':
-               *score += (sc_eqT[(int)qright][(int)qleft] - (1 - sc_eqT[(int)qright][(int)qleft]));
+             case 8: // 'T':
+               *score += (new_eqT[k] - (1 - new_eqT[k]));
                break;
+             default:
+               assert(0);
            }
           *oes    = *score;
           break;
         case 2:
+          k = ((int)qright << 6) | (int)qleft;
           switch (dleft)
            {
-             case 'A':
-               *score += sc_eqA[(int)qright][(int)qleft];
-               *oes += (sc_eqA[(int)qright][(int)qleft] - (1 - sc_eqA[(int)qright][(int)qleft]));
+             case 1: //'A':
+               *score += new_eqA[k];
+               *oes += (new_eqA[k] - (1 - new_eqA[k]));
                break;
-             case 'C':
-               *score += sc_eqC[(int)qright][(int)qleft];
-               *oes   += (sc_eqC[(int)qright][(int)qleft] - (1 - sc_eqC[(int)qright][(int)qleft]));
+             case 2: // 'C':
+               *score += new_eqC[k];
+               *oes   += (new_eqC[k] - (1 - new_eqC[k]));
                break;
-             case 'G':
-               *score += sc_eqG[(int)qright][(int)qleft];
-               *oes   += (sc_eqG[(int)qright][(int)qleft] - (1 - sc_eqG[(int)qright][(int)qleft]));
+             case 4: // 'G':
+               *score += new_eqG[k];
+               *oes   += (new_eqG[k] - (1 - new_eqG[k]));
                break;
-             case 'T':
-               *score += sc_eqT[(int)qright][(int)qleft];
-               *oes   += (sc_eqT[(int)qright][(int)qleft] - (1 - sc_eqT[(int)qright][(int)qleft]));
+             case 8: //'T':
+               *score += new_eqT[k];
+               *oes   += (new_eqT[k] - (1 - new_eqT[k]));
                break;
+             default:
+               assert(0);
            }
           break;
         case 3:
+          k = ((int)qright << 6) | (int)qleft;
           switch (dleft)
            {
-             case 'A':
-               *oes += (sc_eqA[(int)qright][(int)qleft] - (1 - sc_eqA[(int)qright][(int)qleft]));
+             case 1: //'A':
+               *oes += (new_eqA[k] - (1 - new_eqA[k]));
                break;
-             case 'C':
-               *oes += (sc_eqC[(int)qright][(int)qleft] - (1 - sc_eqC[(int)qright][(int)qleft]));
+             case 2: //'C':
+               *oes += (new_eqC[k] - (1 - new_eqC[k]));
                break;
-             case 'G':
-               *oes += (sc_eqG[(int)qright][(int)qleft] - (1 - sc_eqG[(int)qright][(int)qleft]));
+             case 4: //'G':
+               *oes += (new_eqG[k] - (1 - new_eqG[k]));
                break;
-             case 'T':
-               *oes += (sc_eqT[(int)qright][(int)qleft] - (1 - sc_eqT[(int)qright][(int)qleft]));
+             case 8: //'T':
+               *oes += (new_eqT[k] - (1 - new_eqT[k]));
                break;
+             default:
+               assert(0);
            }
           *score += 1;
           break;
+        default:
+          assert (0);
       }
    }
   else          /* not equal */
    {
+     if (dleft > dright)
+      {
+       /* swap the values */
+       dleft  = dleft ^ dright; dright = dleft ^ dright; dleft  = dleft ^ dright;
+       
+       /* swap quality scores */
+       qleft  = qleft ^ qright; qright = qleft ^ qright; qleft  = qleft ^ qright;
+        
+      }
+     i = translate[dleft | dright];
+     k = ((int)qleft << 6) | (int)qright;
      switch (score_method)
       {
         case 1:
-           switch  (dleft)
-           {
-             case 'A':
-               switch (dright)
-                {
-                  case 'C':
-                    *score = *score - (sc_neqAC[(int)qleft][(int)qright] - (1 - sc_neqAC[(int)qleft][(int)qright]));
-                    break;
-                  case 'G':
-                    *score = *score - (sc_neqAG[(int)qleft][(int)qright] - (1 - sc_neqAG[(int)qleft][(int)qright]));
-                    break;
-                  case 'T':
-                    *score = *score - (sc_neqAT[(int)qleft][(int)qright] - (1 - sc_neqAT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'C':
-               switch (dright)
-                {
-                  case 'A':
-                    //*score = *score - (sc_neqCA[(int)qleft][(int)qright] - (1 - sc_neqCA[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqAC[(int)qright][(int)qleft] - (1 - sc_neqAC[(int)qright][(int)qleft]));
-                    break;
-                  case 'G':
-                    *score = *score - (sc_neqCG[(int)qleft][(int)qright] - (1 - sc_neqCG[(int)qleft][(int)qright]));
-                    break;
-                  case 'T':
-                    *score = *score - (sc_neqCT[(int)qleft][(int)qright] - (1 - sc_neqCT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'G':
-               switch (dright)
-                {
-                  case 'A':
-                    //*score = *score - (sc_neqGA[(int)qleft][(int)qright] - (1 - sc_neqGA[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqAG[(int)qright][(int)qleft] - (1 - sc_neqAG[(int)qright][(int)qleft]));
-                    break;
-                  case 'C':
-                    //*score = *score - (sc_neqGC[(int)qleft][(int)qright] - (1 - sc_neqGC[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqCG[(int)qright][(int)qleft] - (1 - sc_neqCG[(int)qright][(int)qleft]));
-                    break;
-                  case 'T':
-                    *score = *score - (sc_neqGT[(int)qleft][(int)qright] - (1 - sc_neqGT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'T':
-               switch (dright)
-                {
-                  case 'A':
-                    //*score = *score - (sc_neqTA[(int)qleft][(int)qright] - (1 - sc_neqTA[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqAT[(int)qright][(int)qleft] - (1 - sc_neqAT[(int)qright][(int)qleft]));
-                    break;
-                  case 'C':
-                    //*score = *score - (sc_neqTC[(int)qleft][(int)qright] - (1 - sc_neqTC[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqCT[(int)qright][(int)qleft] - (1 - sc_neqCT[(int)qright][(int)qleft]));
-                    break;
-                  case 'G':
-                    //*score = *score - (sc_neqTG[(int)qleft][(int)qright] - (1 - sc_neqTG[(int)qleft][(int)qright]));
-                    *score = *score - (sc_neqGT[(int)qright][(int)qleft] - (1 - sc_neqGT[(int)qright][(int)qleft]));
-                    break;
-                }
-               break;
-           }
+          *score = *score - new_diff[i][k] - (1 - new_diff[i][k]);
           *oes = *score;
           break;
+
         case 2:
-          switch  (dleft)
-           {
-             case 'A':
-               switch (dright)
-                {
-                  case 'C':
-                    tmp     = sc_neqAC[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'G':
-                    tmp     = sc_neqAG[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'T':
-                    tmp     = sc_neqAT[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                }
-               break;
-             case 'C':
-               switch (dright)
-                {
-                  case 'A':
-                    tmp     = sc_neqAC[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'G':
-                    tmp     = sc_neqCG[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'T':
-                    tmp     = sc_neqCT[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                }
-               break;
-             case 'G':
-               switch (dright)
-                {
-                  case 'A':
-                    tmp     = sc_neqAG[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'C':
-                    tmp     = sc_neqCG[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'T':
-                    tmp     = sc_neqGT[(int)qleft][(int)qright];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                }
-               break;
-             case 'T':
-               switch (dright)
-                {
-                  case 'A':
-                    tmp     = sc_neqAT[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'C':
-                    tmp     = sc_neqCT[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                  case 'G':
-                    tmp     = sc_neqGT[(int)qright][(int)qleft];
-                    *score -= tmp;
-                    *oes    = *oes - (tmp - (1 - tmp));
-                    break;
-                }
-               break;
-           }
+          *score -= new_diff[i][k];;
+          *oes = *oes - (new_diff[i][k] - (1 - new_diff[i][k]));
           break;
+
         case 3:
           *score -= 1;
-           switch  (dleft)
-           {
-             case 'A':
-               switch (dright)
-                {
-                  case 'C':
-                    *oes = *oes - (sc_neqAC[(int)qleft][(int)qright] - (1 - sc_neqAC[(int)qleft][(int)qright]));
-                    break;
-                  case 'G':
-                    *oes = *oes - (sc_neqAG[(int)qleft][(int)qright] - (1 - sc_neqAG[(int)qleft][(int)qright]));
-                    break;
-                  case 'T':
-                    *oes = *oes - (sc_neqAT[(int)qleft][(int)qright] - (1 - sc_neqAT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'C':
-               switch (dright)
-                {
-                  case 'A':
-                    //*oes = *oes - (sc_neqCA[(int)qleft][(int)qright] - (1 - sc_neqCA[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqAC[(int)qright][(int)qleft] - (1 - sc_neqAC[(int)qright][(int)qleft]));
-                    break;
-                  case 'G':
-                    *oes = *oes - (sc_neqCG[(int)qleft][(int)qright] - (1 - sc_neqCG[(int)qleft][(int)qright]));
-                    break;
-                  case 'T':
-                    *oes = *oes - (sc_neqCT[(int)qleft][(int)qright] - (1 - sc_neqCT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'G':
-               switch (dright)
-                {
-                  case 'A':
-                    //*oes = *oes - (sc_neqGA[(int)qleft][(int)qright] - (1 - sc_neqGA[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqAG[(int)qright][(int)qleft] - (1 - sc_neqAG[(int)qright][(int)qleft]));
-                    break;
-                  case 'C':
-                    //*oes = *oes - (sc_neqGC[(int)qleft][(int)qright] - (1 - sc_neqGC[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqCG[(int)qright][(int)qleft] - (1 - sc_neqCG[(int)qright][(int)qleft]));
-                    break;
-                  case 'T':
-                    *oes = *oes - (sc_neqGT[(int)qleft][(int)qright] - (1 - sc_neqGT[(int)qleft][(int)qright]));
-                    break;
-                }
-               break;
-             case 'T':
-               switch (dright)
-                {
-                  case 'A':
-                    //*oes = *oes - (sc_neqTA[(int)qleft][(int)qright] - (1 - sc_neqTA[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqAT[(int)qright][(int)qleft] - (1 - sc_neqAT[(int)qright][(int)qleft]));
-                    break;
-                  case 'C':
-                    //*oes = *oes - (sc_neqTC[(int)qleft][(int)qright] - (1 - sc_neqTC[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqCT[(int)qright][(int)qleft] - (1 - sc_neqCT[(int)qright][(int)qleft]));
-                    break;
-                  case 'G':
-                    //*oes = *oes - (sc_neqTG[(int)qleft][(int)qright] - (1 - sc_neqTG[(int)qleft][(int)qright]));
-                    *oes = *oes - (sc_neqGT[(int)qright][(int)qleft] - (1 - sc_neqGT[(int)qright][(int)qleft]));
-                    break;
-                }
-               break;
-           }
+          *oes = *oes - (new_diff[i][k] - (1 - new_diff[i][k]));
           break;
+        default:
+          assert (0);
       }
    }
 }
 
+#if 0
 /* TODO: Remember to speed up this function by doing something with the multiplication and division of match/mismatch */
-INLINE void 
-scoring (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, int match, int mismatch)
+INLINE void  scoring (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, int match, int mismatch)
 {
   double tmp;
 
-  if (dleft == 'N' || dright == 'N')       /* one of them is N */
+  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -962,14 +900,16 @@ scoring (char dleft, char dright, char qleft, char qright, int score_method, dou
       }
    }
 }
+#endif
 
 /* TODO: Remember to speed up this function by doing something with the multiplication and division of match/mismatch */
-INLINE void 
-scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes)
+static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes)
 {
   double tmp;
+  int k;
 
-  if (dleft == 'N' || dright == 'N')       /* one of them is N */
+  k = ((int)qright << 6) | (int)qleft;
+  if (dleft > UNCALLED || dright > UNCALLED)       /* one of them is N */
    {
      switch (score_method)
       {
@@ -986,6 +926,8 @@ scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, 
           *score -= 1;
           *oes += ( - 0.5 );
           break;
+        default:
+          assert (0);
       }
    }
   else if (dleft == dright)     /* equal */
@@ -993,18 +935,24 @@ scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, 
      switch (score_method)
       {
         case 1:
-          *score += (sc_eq[(int)qright][(int)qleft] - (1 - sc_eq[(int)qright][(int)qleft]) );
+          //*score += (sc_eq[(int)qright][(int)qleft] - (1 - sc_eq[(int)qright][(int)qleft]) );
+          *score += (new_eq[k] - (1 - new_eq[k]) );
           *oes    = *score;
           break;
         case 2:
-          tmp     = sc_eq[(int)qright][(int)qleft];
-          *oes   += (tmp - (1 - sc_eq[(int)qright][(int)qleft] ));
+          //tmp     = sc_eq[(int)qright][(int)qleft];
+          tmp     = new_eq[k];
+          //*oes   += (tmp - (1 - sc_eq[(int)qright][(int)qleft] ));
+          *oes   += (tmp - (1 - new_eq[k] ));
           *score += tmp;
           break;
         case 3:
           *score += 1;
-          *oes   += (sc_eq[(int)qright][(int)qleft] - (1 - sc_eq[(int)qright][(int)qleft] ) );
+          //*oes   += (sc_eq[(int)qright][(int)qleft] - (1 - sc_eq[(int)qright][(int)qleft] ) );
+          *oes   += (new_eq[k] - (1 - new_eq[k] ) );
           break;
+        default:
+          assert (0);
       }
    }
   else          /* not equal */
@@ -1012,24 +960,29 @@ scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, 
      switch (score_method)
       {
         case 1:
-          *score = *score - (sc_neq[(int)qright][(int)qleft] - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          //*score = *score - (sc_neq[(int)qright][(int)qleft] - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          *score = *score - (new_neq[k] - (1 - new_neq[k] ) );
           *oes    = *score;
           break;
         case 2:
-          tmp     = sc_neq[(int)qright][(int)qleft];
-          *oes    = *oes - (tmp - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          //tmp     = sc_neq[(int)qright][(int)qleft];
+          tmp     = new_neq[k];
+          //*oes    = *oes - (tmp - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          *oes    = *oes - (tmp - (1 - new_neq[k] ) );
           *score -= tmp;
           break;
         case 3:
           *score -= 1;
-          *oes    = *score - (sc_neq[(int)qright][(int)qleft] - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          //*oes    = *score - (sc_neq[(int)qright][(int)qleft] - (1 - sc_neq[(int)qright][(int)qleft] ) );
+          *oes    = *score - (new_neq[k] - (1 - new_neq[k] ) );
           break;
+        default:
+          assert (0);
       }
    }
 }
 
-INLINE int
-assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
+static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
 {
   int 
     i,
@@ -1158,9 +1111,9 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+            if (forward->data[j] > UNCALLED)  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+            if (reverse->data[j] > UNCALLED)  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1178,15 +1131,15 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+            if (forward->data[j] > UNCALLED)  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+            if (reverse->data[j] > UNCALLED)  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[j - nForward + best_overlap] == 'N' || reverse->data[j - nForward + best_overlap] == 'n'))  ++uncalled;
+            if ((forward->data[j] > UNCALLED) && (reverse->data[j - nForward + best_overlap] > UNCALLED))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1197,7 +1150,7 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
                
              
-             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
+             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
 
@@ -1217,18 +1170,18 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 
        /* count uncalled bases in the non-overlapping high-quality part of the forward read */
        for (j = 0; j < best_overlap; ++ j)
-         if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+         if (forward->data[j] > UNCALLED)  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = best_overlap; j < best_overlap + nReverse; ++ j)
-         if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[j - nReverse - best_overlap] == 'N' || reverse->data[j - nReverse - best_overlap] == 'n'))  ++uncalled;
+         if ((forward->data[j] > UNCALLED) && (reverse->data[j - nReverse - best_overlap] > UNCALLED))  ++uncalled;
        uncalled /= asm_len;
 
        if (nReverse >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
           
-          assemble_overlap (forward, reverse, best_overlap, 0, nReverse, forward, sw);
+          assemble_overlap (forward, reverse, best_overlap, 0, nReverse, forward);
 
           forward->data[best_overlap + nReverse]   = 0;
           forward->qscore[best_overlap + nReverse] = 0;
@@ -1243,12 +1196,12 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[nReverse - best_overlap + j] == 'N' || reverse->data[nReverse - best_overlap + j] == 'n')) ++uncalled;
+         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap + j] > UNCALLED)) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
-          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
+          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward);
           
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
@@ -1259,6 +1212,8 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
           return (0);
         }
        break;
+     default:
+       assert (0);
 
    }
 
@@ -1266,8 +1221,7 @@ assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 
 }
 
-INLINE int
-assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int n)
+static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int n)
 {
   int 
     i,
@@ -1356,9 +1310,9 @@ assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq 
         asm_len = 2 * n;
 
         for (j = 0; j < n; ++ j)
-          if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+          if (forward->data[j] > UNCALLED)  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+          if (reverse->data[j] > UNCALLED)  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1375,13 +1329,13 @@ assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq 
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[j] == 'N' || reverse->data[j] == 'n')) ++uncalled;
+          if ((forward->data[j] > UNCALLED) && (reverse->data[j] > UNCALLED)) ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE);
-           assemble_overlap (forward, reverse, 0, 0, n, forward, sw);
+           assemble_overlap (forward, reverse, 0, 0, n, forward);
            forward->data[n]   = 0;
            forward->qscore[n] = 0;
          }
@@ -1394,18 +1348,18 @@ assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq 
       {
         asm_len = 2 * n - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+          if (forward->data[j] > UNCALLED)  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[j - n + best_overlap] == 'N' || reverse->data[j - n + best_overlap] == 'n'))  ++uncalled;
+          if ((forward->data[j] > UNCALLED) && (reverse->data[j - n + best_overlap] > UNCALLED))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+          if (reverse->data[j] > UNCALLED)  ++uncalled;
         uncalled /= asm_len;
 
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
            
-           assemble_overlap (forward, reverse, n - best_overlap, 0, best_overlap, forward, sw);
+           assemble_overlap (forward, reverse, n - best_overlap, 0, best_overlap, forward);
            memmove (reverse->data,   reverse->data   + best_overlap,  n - best_overlap);
            memmove (reverse->qscore, reverse->qscore + best_overlap,  n - best_overlap);
            /* THIS IS WRONG */
@@ -1427,12 +1381,12 @@ assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq 
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[n - best_overlap + j] == 'N' || reverse->data[n - best_overlap + j] == 'n')) ++uncalled;
+       if ((forward->data[j] > UNCALLED) && (reverse->data[n - best_overlap + j] > UNCALLED)) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
-        assemble_overlap (forward, reverse, 0, n - best_overlap, best_overlap, forward, sw);
+        assemble_overlap (forward, reverse, 0, n - best_overlap, best_overlap, forward);
         
         forward->data[best_overlap]   = 0;
         forward->qscore[best_overlap] = 0;
@@ -1452,8 +1406,7 @@ assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq 
 
 }
 
-INLINE int
-assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
+static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
 {
   int 
     i,
@@ -1576,9 +1529,9 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
           asm_len = nForward + nReverse;
 
           for (j = 0; j < nForward; ++ j)
-            if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+            if (forward->data[j] > UNCALLED)  ++uncalled;
           for (j = 0; j < nReverse; ++ j)
-            if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+            if (reverse->data[j] > UNCALLED)  ++uncalled;
           uncalled /= (nForward + nReverse);
 
           if (0 >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1596,15 +1549,15 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 
           /* count uncalled bases in the non-overlapping high-quality part of the forward read */
           for (j = 0; j < nForward - best_overlap; ++ j)
-            if (forward->data[j] == 'N' || forward->data[j] == 'n')  ++uncalled;
+            if (forward->data[j] > UNCALLED)  ++uncalled;
 
           /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
           for (j = best_overlap; j < nReverse; ++ j)
-            if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+            if (reverse->data[j] > UNCALLED)  ++uncalled;
 
           /* count the uncalled bases in the overlapping part of the two reads */
           for (j = nForward - best_overlap; j < nForward; ++ j)
-            if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[j - nForward + best_overlap] == 'N' || reverse->data[j - nForward + best_overlap] == 'n'))  ++uncalled;
+            if ((forward->data[j] > UNCALLED) && (reverse->data[j - nForward + best_overlap] > UNCALLED))  ++uncalled;
           uncalled /= asm_len;
 
           if (nForward + nReverse - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1615,7 +1568,7 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
                
              
-             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
+             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
 
@@ -1635,18 +1588,18 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 
        /* count uncalled bases in the non-overlapping high-quality part of the reverse read */
        for (j = nReverse - best_overlap; j < nReverse; ++ j)
-         if (reverse->data[j] == 'N' || reverse->data[j] == 'n')  ++uncalled;
+         if (reverse->data[j] > UNCALLED)  ++uncalled;
 
        /* count the uncalled bases in the overlapping part of the two reads */
        for (j = 0; j < nForward; ++ j)
-         if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[nReverse - best_overlap - nForward + j] == 'N' || reverse->data[nReverse - best_overlap -nForward + j] == 'n'))  ++uncalled;
+         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap - nForward + j] > UNCALLED))  ++uncalled;
        uncalled /= asm_len;
 
        if (nForward >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
           
-          assemble_overlap (forward, reverse, 0, nReverse - nForward - best_overlap, nForward, forward, sw);
+          assemble_overlap (forward, reverse, 0, nReverse - nForward - best_overlap, nForward, forward);
 
           memmove (reverse->data,   reverse->data + nReverse - best_overlap,   best_overlap);
           memmove (reverse->qscore, reverse->qscore + nReverse - best_overlap, best_overlap);
@@ -1664,12 +1617,12 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
        
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
-         if ((forward->data[j] == 'N' || forward->data[j] == 'n') && (reverse->data[nReverse - best_overlap + j] == 'N' || reverse->data[nReverse - best_overlap + j] == 'n')) ++uncalled;
+         if ((forward->data[j] > UNCALLED) && (reverse->data[nReverse - best_overlap + j] > UNCALLED)) ++uncalled;
        uncalled /= asm_len;
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
-          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
+          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward);
           
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
@@ -1680,6 +1633,8 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
           return (0);
         }
        break;
+     default:
+       assert (0);
    }
 
   return (1);
@@ -1687,8 +1642,7 @@ assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_fr
 }
 
 
-INLINE int
-assembly_ef (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw)
+static INLINE int assembly_ef (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw)
 {
   int
     nForward, 
@@ -1718,8 +1672,7 @@ assembly_ef (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, str
   return (rc);
 }
 
-INLINE int
-assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
+static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
 {
   int                   i,j;
   int                   n;
@@ -1803,9 +1756,9 @@ assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
         asm_len = (n << 1);
 
         for (j = 0; j < n; ++ j)
-          if (left->data[j] == 'N' || left->data[j] == 'n')  ++uncalled;
+          if (left->data[j] > UNCALLED)  ++uncalled;
         for (j = 0; j < n; ++ j)
-          if (right->data[j] == 'N' || right->data[j] == 'n')  ++uncalled;
+          if (right->data[j] > UNCALLED)  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
@@ -1822,13 +1775,13 @@ assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
         asm_len         = n;
 
         for (j = 0; j < asm_len; ++ j)
-          if ((left->data[j] == 'N' || left->data[j] == 'n') && (right->data[j] == 'N' || right->data[j] == 'n')) ++uncalled;
+          if ((left->data[j] > UNCALLED) && (right->data[j] > UNCALLED)) ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(left,PEAR_READ_OUT_SINGLE);
-           assemble_overlap (left, right, 0, 0, n, left, sw);
+           assemble_overlap (left, right, 0, 0, n, left);
            left->data[n]   = 0;
            left->qscore[n] = 0;
          }
@@ -1841,17 +1794,17 @@ assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
       {
         asm_len = (n << 1) - best_overlap;
         for (j = 0; j < n - best_overlap; ++ j)
-          if (left->data[j] == 'N' || left->data[j] == 'n')  ++uncalled;
+          if (left->data[j] > UNCALLED)  ++uncalled;
         for (j = n - best_overlap; j < n; ++ j)
-          if ((left->data[j] == 'N' || left->data[j] == 'n') && (right->data[j - n + best_overlap] == 'N' || right->data[j - n + best_overlap] == 'n'))  ++uncalled;
+          if ((left->data[j] > UNCALLED) && (right->data[j - n + best_overlap] > UNCALLED))  ++uncalled;
         for (j = best_overlap; j < n; ++ j)
-          if (right->data[j] == 'N' || right->data[j] == 'n')  ++uncalled;
+          if (right->data[j] > UNCALLED)  ++uncalled;
         uncalled /= asm_len;
 
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(left,PEAR_READ_OUT_BOTH);
-           assemble_overlap (left, right, n - best_overlap, 0, best_overlap, left, sw);
+           assemble_overlap (left, right, n - best_overlap, 0, best_overlap, left);
            memmove (right->data,   right->data   + best_overlap,  n - best_overlap);
            memmove (right->qscore, right->qscore + best_overlap,  n - best_overlap);
            /* THIS IS WRONG */
@@ -1873,12 +1826,12 @@ assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
      
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
-       if ((left->data[j] == 'N' || left->data[j] == 'n') && (right->data[n - best_overlap + j] == 'N' || right->data[n - best_overlap + j] == 'n')) ++uncalled;
+       if ((left->data[j] > UNCALLED) && (right->data[n - best_overlap + j] > UNCALLED)) ++uncalled;
      uncalled /= asm_len;
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
-        assemble_overlap (left, right, 0, n - best_overlap, best_overlap, left, sw);
+        assemble_overlap (left, right, 0, n - best_overlap, best_overlap, left);
         
         left->data[best_overlap]   = 0;
         left->qscore[best_overlap] = 0;
@@ -1901,24 +1854,14 @@ assembly (fastqRead * left, fastqRead * right, struct user_args  * sw)
 
     @param left
     @param right
-    
-    @param base_left
-      Position in the forward read where the overlap starts
-    
-    @param base_right
-      Position in the reverse read where the overlap starts
-    
-    @param ol_size
-      Overlap size
-
-    @param ai
-      Buffer where to store the merge read
-
+    @param base_left  Position in the forward read where the overlap starts
+    @param base_right Position in the reverse read where the overlap starts
+    @param ol_size    Overlap size
+    @param ai         Buffer where to store the merge read
     @param phred_base
 */
 
-double
-assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai, struct user_args * sw)
+static double assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai)
 {
   int           i; 
   char          x, y;
@@ -1931,19 +1874,19 @@ assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_r
      y  = right->data[base_right + i];
      qx = left->qscore[base_left + i];
      qy = right->qscore[base_right + i];
-     if ( (x == 'N' || x == 'n') && (y == 'N' || y == 'n'))
+     if ((x > UNCALLED) && (y > UNCALLED))
       {
         //exp_match += 0.25; sm_len
-        ai->data[base_left + i]          = 'N';
+        ai->data[base_left + i]   = x | y;
         ai->qscore[base_left + i] = ( qx < qy ) ? qx : qy;
       }
-     else if (x == 'N' || x == 'n')
+     else if (x > UNCALLED)
       {
         //exp_match += 0.25; 
-        ai->data[base_left + i]          = y;
+        ai->data[base_left + i]   = y;
         ai->qscore[base_left + i] = qy;
       }
-     else if (y == 'N' || y == 'n')
+     else if (y > UNCALLED)
       {
         //exp_match += 0.25; 
         ai->data[base_left + i]          = x;
@@ -1956,7 +1899,8 @@ assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_r
            //exp_match += (sc_eq[(int)qx][(int)qy] / match_score);
            
            ai->data[base_left + i] = x;
-           ai->qscore[base_left + i] = (right->qscore[base_right + i] - sw->phred_base) + (left->qscore[base_left + i] - sw->phred_base) + sw->phred_base; //qs_mul[qx][qy];
+           //ai->qscore[base_left + i] = (right->qscore[base_right + i] - sw->phred_base) + (left->qscore[base_left + i] - sw->phred_base) + sw->phred_base; //qs_mul[qx][qy];
+           ai->qscore[base_left + i] = (right->qscore[base_right + i]) + (left->qscore[base_left + i]) - 1; //qs_mul[qx][qy];
          }
         else
          {
@@ -1964,12 +1908,12 @@ assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_r
            
            if (qx > qy)
             {
-              ai->data[base_left + i]          =  x;
+              ai->data[base_left + i]   =  x;
               ai->qscore[base_left + i] = qx;
             }
            else
             {
-              ai->data[base_left + i]          =  y;
+              ai->data[base_left + i]   =  y;
               ai->qscore[base_left + i] = qy;
             }
          }
@@ -1978,7 +1922,7 @@ assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_r
   return (0);
 }
 
-void mstrrev (char * s)
+static void mstrrev (char * s)
 {
   char * q = s;
 
@@ -1992,38 +1936,30 @@ void mstrrev (char * s)
    }
 }
 
-void mstrcpl (char * s)
+static void mstrcpl (char * s)
 {
   if (!s) return;
 
   while (*s)
-   {
-     switch (*s)
-      {
-        case 'A':
-        case 'a':
-                  *s = 'T';
-                  break;
-        case 'C':
-        case 'c':
-                  *s = 'G';
-                  break;
-        case 'G':
-        case 'g':
-                  *s = 'C';
-                  break;
-        case 'T':
-        case 't':
-                  *s = 'A';
-                  break;
-      }
-     ++s;
+   {  
+      /* if the codes were 0,1,2,3,4 it would be
+         that simple:
+      *s = (*s >> 2) + (~*s & 3);
+      */
+ 
+      /* with codes 1,2,3,4,5 it gets nasty: */
+      *s = cpl_nt[(int)*s];
+      /*
+      *s = (((*s & 1) & (! (*s & 2))) << 2) |  
+           (((!((*s & 4) >> 2) ) & ((*s & 2) >> 1)) << 1 ) | 
+           (((!((*s & 4) >> 2)) & ((*s & 2) >> 1) & !(*s & 1)) | 
+                (((*s & 4) >> 2) & !((*s & 2) >> 1)));*/
+      ++s;
    }
 }
 
-
-int 
-validate_input (int nleft, int nright)
+#if 0
+static int validate_input (int nleft, int nright)
 {
   if (!nleft || !nright)
    {
@@ -2039,6 +1975,7 @@ validate_input (int nleft, int nright)
 
   return (1);
 }
+#endif
 
 static char *
 makefilename (const char * prefix, const char * suffix)
@@ -2057,26 +1994,19 @@ makefilename (const char * prefix, const char * suffix)
  *
  *  Write the result of overlapping of a specific read to the corresponding output file
  *
- *  @param fwd
- *     Structure containing the forward reads. Note that this structure is mutable and has
- *     been modified to contain the new read which is the result of the assembly.
- *
- *  @param rev
- *     Structure containing the reverse reads. Note that this structure is mutable and has
- *     been modified to contain the new read which is the result of the assembly.
- *
- *  @param elms
- *     Number of reads in the structure
- *
- *  @param fd
- *     Array of file descriptors of output files
+ *  @param fwd  Structure containing the forward reads. Note that this structure is 
+ *              mutable and has been modified to contain the new read which is the
+ *              result of the assembly.
+ *  @param rev  Structure containing the reverse reads. Note that this structure is 
+ *              mutable and has been modified to contain the new read which is the 
+ *              result of the assembly.
+ *  @param elms Number of reads in the structure
+ *  @param fd   Array of file descriptors of output files
  */
-void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** fd, struct user_args * sw)
+static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** fd, struct user_args * sw)
 {
-  int i;
+  unsigned int i;
   char bothOut;   /* this is set if both fwd[i] and rev[i] contain the resulting assembled read and qscore */
-  char * x;
-  int capval = sw->cap + sw->phred_base;
   
   for ( i = 0; i < elms; ++ i)
    {
@@ -2086,6 +2016,7 @@ void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** 
      if (PEAR_DECODE_ASM_TYPE(fwd[i]) == PEAR_READ_ASSEMBLED)   /* assembled */
       {
         PEAR_RESET_ASM_TYPE(fwd[i]);
+        revconvert(fwd[i]->data);
         fprintf (fd[0], "%s\n", fwd[i]->header);
         if (!bothOut)
          {
@@ -2093,33 +2024,21 @@ void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** 
          }
         else
          {
+           revconvert(rev[i]->data);
            fprintf (fd[0], "%s",   fwd[i]->data);
            fprintf (fd[0], "%s\n", rev[i]->data);
          }
         fprintf (fd[0], "+\n");
 
         
-        x = fwd[i]->qscore;
-        if (sw->cap)
-          while (*x) 
-           {
-             if (*x > capval) *x = capval;
-             ++x;
-           }
-
+        add_base_qscores(fwd[i]->qscore, sw->phred_base, sw->cap);
         if (!bothOut)
          {
            fprintf (fd[0], "%s\n", fwd[i]->qscore);
          }
         else
          {
-           x = rev[i]->qscore;
-           if (sw->cap)
-             while (*x) 
-              {
-                if (*x > capval) *x = capval;
-                ++ x;
-              }
+           add_base_qscores(rev[i]->qscore, sw->phred_base, sw->cap);
            fprintf (fd[0], "%s",   fwd[i]->qscore);
            fprintf (fd[0], "%s\n", rev[i]->qscore);
          }
@@ -2128,22 +2047,10 @@ void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** 
       }
      else 
       {
-        if (sw->cap)
-         {
-          x = fwd[i]->qscore; 
-          while (*x) 
-           {
-             if (*x > capval) *x = capval;
-             ++ x;
-           }
-
-          x = rev[i]->qscore;
-          while (*x) 
-           {
-             if (*x > capval) *x = capval;
-             ++ x;
-           }
-         }
+        add_base_qscores(fwd[i]->qscore, sw->phred_base, sw->cap);
+        add_base_qscores(rev[i]->qscore, sw->phred_base, sw->cap);
+        revconvert(fwd[i]->data);
+        revconvert(rev[i]->data);
         if (PEAR_DECODE_ASM_TYPE(fwd[i]) == PEAR_READ_DISCARDED)                                            /* discarded */
          {
            PEAR_RESET_ASM_TYPE(fwd[i]);
@@ -2168,7 +2075,7 @@ void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, FILE ** 
    }
 }
 
-void flip_list (void)
+static void flip_list (void)
 {
   memBlockInfo * elm1;
   memBlockInfo * elm2;
@@ -2180,10 +2087,9 @@ void flip_list (void)
   thr_global.yblock = elm1;
 }
 
-INLINE int 
-assign_reads (memBlockInfo * block, struct thread_local_t * thr_local)
+static INLINE int assign_reads (memBlockInfo * block, struct thread_local_t * thr_local)
 {
-  int r;
+  unsigned int r;
 
   if (block->reads == block->processed) return (0);
 
@@ -2205,10 +2111,11 @@ assign_reads (memBlockInfo * block, struct thread_local_t * thr_local)
   return (1);
 }
 
-void * entry_point_ef (void * data)
+static void * entry_point_ef (void * data)
 {
   struct thread_local_t * thr_local;
-  int ass, i, sleep, elms;
+  int ass, sleep, elms;
+  unsigned int i;
   double                uncalled_forward, uncalled_reverse;
 
   /* initialization of values */
@@ -2325,6 +2232,11 @@ void * entry_point_ef (void * data)
         // TODO: Process reads and make this an inline function
         for (i = thr_local->start; i < thr_local->end; ++ i)
          {
+           convert (thr_local->block->fwd->reads[i]->data);
+           convert (thr_local->block->rev->reads[i]->data);
+           remove_base_qscores (thr_local->block->fwd->reads[i]->qscore, thr_local->sw->phred_base);
+           remove_base_qscores (thr_local->block->rev->reads[i]->qscore, thr_local->sw->phred_base);
+
            mstrrev (thr_local->block->rev->reads[i]->data);    /* reverse the sequence */
            mstrcpl (thr_local->block->rev->reads[i]->data);    /* complement the sequence */
            mstrrev (thr_local->block->rev->reads[i]->qscore);  /* reverse the quality scores */
@@ -2362,9 +2274,10 @@ void * entry_point_ef (void * data)
    }
   return (NULL);
 }
-void * entry_point (void * data)
+static void * entry_point (void * data)
 {  struct thread_local_t * thr_local;
-  int ass, i, sleep, elms;
+  int ass, sleep, elms;
+  unsigned int i;
   double                uncalled_forward, uncalled_reverse;
 
   /* initialization of values */
@@ -2477,6 +2390,11 @@ void * entry_point (void * data)
         // TODO: Process reads and make this an inline function
         for (i = thr_local->start; i < thr_local->end; ++ i)
          {
+           convert (thr_local->block->fwd->reads[i]->data);
+           convert (thr_local->block->rev->reads[i]->data);
+           remove_base_qscores (thr_local->block->fwd->reads[i]->qscore, thr_local->sw->phred_base);
+           remove_base_qscores (thr_local->block->rev->reads[i]->qscore, thr_local->sw->phred_base);
+
            mstrrev (thr_local->block->rev->reads[i]->data);    /* reverse the sequence */
            mstrcpl (thr_local->block->rev->reads[i]->data);    /* complement the sequence */
            mstrrev (thr_local->block->rev->reads[i]->qscore);  /* reverse the quality scores */
@@ -2515,7 +2433,7 @@ void * entry_point (void * data)
   return (NULL);
 }
 
-void init_thr_global (void)
+static void init_thr_global (void)
 {
   thr_global.xblock = (memBlockInfo *) calloc (1,sizeof(memBlockInfo));
   thr_global.yblock = (memBlockInfo *) calloc (1,sizeof(memBlockInfo));
@@ -2535,7 +2453,7 @@ void init_thr_global (void)
   thr_global.finish = 0;
 }
 
-void close_output_files (void)
+static void close_output_files (void)
 {
   fclose (thr_global.fd[0]);
   fclose (thr_global.fd[1]);
@@ -2543,7 +2461,7 @@ void close_output_files (void)
   fclose (thr_global.fd[3]);
 }
 
-void free_global_thread_memory (void)
+static void free_global_thread_memory (void)
 {
   free (thr_global.xblock->fwd);
   free (thr_global.xblock->rev);
@@ -2553,7 +2471,7 @@ void free_global_thread_memory (void)
   free (thr_global.yblock);
 }
 
-void destroy_thr_global (void)
+static void destroy_thr_global (void)
 {
   close_output_files(); 
 
@@ -2597,10 +2515,11 @@ init_files (struct user_args * sw)
   return (1);
 }
 
-void * emp_entry_point (void * data)
+static void * emp_entry_point (void * data)
 {
   struct thread_local_t * thr_local;
-  int i, j, sleep, elms;
+  int j, sleep, elms;
+  unsigned int i;
   struct emp_freq * ef;
   fastqRead * reads[2];
   char * seq;
@@ -2744,15 +2663,14 @@ void * emp_entry_point (void * data)
                       ++ ef->freqg;
                       break;
 
-                    case 'N':
-                    case 'n':
-                      ++ ef->freqn;
-                      break;
-
                     case 'T':
                     case 't':
                       ++ ef->freqt;
                       break;
+                    default:    /* uncalled bases */
+                      ++ ef->freqn;
+                      break;
+                      
                   }
                  ++ seq;
                }
@@ -2779,8 +2697,7 @@ void * emp_entry_point (void * data)
   return (ef);
 }
 
-void
-DisplayInstance (struct user_args * sw)
+static void DisplayInstance (struct user_args * sw)
 {
   fprintf (stdout, " ____  _____    _    ____ \n"); 
   fprintf (stdout, "|  _ \\| ____|  / \\  |  _ \\\n");
@@ -2820,8 +2737,7 @@ DisplayInstance (struct user_args * sw)
 
 }
 
-int 
-main (int argc, char * argv[])
+int main (int argc, char * argv[])
 {
   int                   i;
   struct user_args      sw;
@@ -2844,9 +2760,15 @@ main (int argc, char * argv[])
      usage ();
      return (EXIT_FAILURE);
    }
-
+  
   /* Display PEAR instance settings */
   DisplayInstance (&sw);
+
+  /* check consistency of input files */
+  if (!pear_check_files (sw.fastq_left, sw.fastq_right))
+   {
+     return (EXIT_FAILURE);
+   }
 
   init_thr_global ();
   thr_data = (struct thread_local_t *) calloc (sw.threads, sizeof (struct thread_local_t));
@@ -2904,7 +2826,7 @@ main (int argc, char * argv[])
      ef->q  = ef->pa * ef->pa + ef->pc * ef->pc + ef->pg * ef->pg + ef->pt * ef->pt;
      printf ("DONE\n");
      printf ("  A: %f\n  C: %f\n  G: %f\n  T: %f\n", ef->pa, ef->pc, ef->pg, ef->pt);
-     printf ("  %ld uncalled bases\n", ef->freqn);
+     printf ("  %ld uncalled bases\n", ef->freqn);      /* TODO: Note that only N's are reported */
      rewind_files ();
      thr_global.xblock->fwd->unread = thr_global.xblock->rev->unread = NULL;
      thr_global.yblock->fwd->unread = thr_global.yblock->rev->unread = NULL;
@@ -2934,18 +2856,12 @@ main (int argc, char * argv[])
      ef = (struct emp_freq *)malloc (sizeof(struct emp_freq));
      ef->freqa = ef->freqc = ef->freqg = ef->freqt = ef->total = ef->pa = ef->pc = ef->pg = ef->pt = ef->q = 0.25;
      sw.emp_freqs = 1;
-//     printf ("Set emp freqs to 0.25\n");
    }
   
-//  printf ("!!!! A: %d\nC: %d\nG: %d\nT: %d\n", ef->freqa, ef->freqc, ef->freqg, ef->freqt);
-//  exit (1);
-
-  init_scores(sw.phred_base, ef);
+  init_scores(ef);
 
   fprintf (stdout, "Assemblying reads..................: [");
   fflush (stdout);
-
-  //printf ("END DEBUG TEST\n"); //exit(1);
 
   blockElements = db_get_next_reads (thr_global.yblock->fwd, 
                             thr_global.yblock->rev,

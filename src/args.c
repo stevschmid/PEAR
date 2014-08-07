@@ -17,8 +17,8 @@ extern void print_number (size_t x);
 
 /** @brief Command-line short and long options
     
-    Command-line short and the corresponding long options structure required
-    by the \a getopt_long function
+    Command-line short and the corresponding long options structure required by
+    the \a getopt_long function
 */
 static struct option long_options[] =
  {
@@ -54,8 +54,9 @@ void usage (void)
   fprintf (stdout, "| |_) |  _|   / _ \\ | |_) |\n");
   fprintf (stdout, "|  __/| |___ / ___ \\|  _ <\n");
   fprintf (stdout, "|_|   |_____/_/   \\_\\_| \\_\\\n");
-  fprintf (stdout, "\n.oOo. Paired-End reAd mergeR .oOo.\n");
-  fprintf (stdout, "%s v%s released on %s by Tomas Flouri and Jiajie Zhang\n", PROGRAM_NAME, PROGRAM_VERSION, VERSION_DATE);
+  fprintf (stdout, "%s v%s [%s] %s\n\n", PROGRAM_NAME, PROGRAM_VERSION, VERSION_DATE, COMPILE_INFO);
+  fprintf (stdout, "Citation - PEAR: a fast and accurate Illumina Paired-End reAd mergeR\n");
+  fprintf (stdout, "Zhang et al (2014) Bioinformatics 30(5): 614-620 | doi:10.1093/bioinformatics/btt593\n\n");
   fprintf (stdout, "License: %s\n", LICENCE);
   fprintf (stdout, "Bug-reports and requests to: %s\n", CONTACT);
   fprintf (stdout, "\n\n"); 
@@ -135,14 +136,9 @@ void usage (void)
     A parser for the command-line options of PEAR. A minimum of the two pair-end
     reads and output filename must be provided.
 
-    @param argc
-      The number of command-line parameters given
-
-    @param argv
-      The array of command-line parameters
-
-    @param sw
-      The structure where the user-defined switches will be stored in
+    @param argc    The number of command-line parameters given
+    @param argv    The array of command-line parameters
+    @param sw      The structure where the user-defined switches will be stored in
 */
 int decode_switches (int argc, char * argv[], struct user_args * sw)
 {
@@ -172,7 +168,7 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
   sw->threads       =         1;
   sw->cap           =        40;
 
-  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:", long_options, &oi)) != -1)
+  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:", long_options, &oi)) != -1)
    {
      switch (opt)
       {
@@ -323,7 +319,7 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
           if (optarg[n - 1] != 'k' && optarg[n - 1] != 'K' &&
               optarg[n - 1] != 'M' && optarg[n - 1] != 'm' &&
               optarg[n - 1] != 'G' && optarg[n - 1] != 'g' &&
-              optarg[n - 1] < '0' && optarg[n - 1] > '9')
+              optarg[n - 1]  < '0' && optarg[n - 1]  > '9')
            {
              fprintf (stderr, "Invalid memory size specified\n");
              return (0);
@@ -357,6 +353,9 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
           sw->memory *= x;
           if (!sw->memory) -- sw->memory;
           break;
+        default:
+          fprintf (stderr, "Invalid argument -%c\n", opt);
+          return (0);
       }
    }
   return (sw->fastq_left && sw->fastq_right && sw->outfile);

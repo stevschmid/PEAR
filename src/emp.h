@@ -4,14 +4,16 @@
 /** @file emp.h
     @brief Header file for empirical frequencies computation
 
-    Header file containing a data structure for storing empirical frequency related data
+    Header file containing a data structure for storing empirical frequency
+    related data
 */
 
 /** @brief Structure for storing empirical frequency related data
 
-    Stores frequency of each base \a freqa, \a freqc, \a freqg and \a freqt. The total of all
-    bases is stored in \a total. \a pa, \a pc, \a pg and \a pt represent the ratio of each
-    base to the total number of bases. \a q is the sum of squares of \a pa, \a pc, \a pg and \a pt.
+    Stores frequency of each base \a freqa, \a freqc, \a freqg and \a freqt.
+    The total of all bases is stored in \a total. \a pa, \a pc, \a pg and \a pt
+    represent the ratio of each base to the total number of bases. \a q is the
+    sum of squares of \a pa, \a pc, \a pg and \a pt.
 */
 struct emp_freq
  {
