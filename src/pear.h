@@ -11,7 +11,7 @@
 #ifdef HAVE_BZLIB_H
 #define COMPILE_INFO            " - [+bzlib]"
 #else
-i#define COMPILE_INFO           ""
+#define COMPILE_INFO           ""
 #endif
 
 #endif

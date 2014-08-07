@@ -80,7 +80,6 @@ int pear_check_files (const char * f1, const char * f2)
    }
   if (!fp1 || !fp2) return (0);
   
-
   forward_file_type = check_file_magic (fp1);
   reverse_file_type = check_file_magic (fp2);
 
