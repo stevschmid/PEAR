@@ -18,7 +18,7 @@ def unit_test(f, r, o, fcompare):
         return "failed"
 
 def gen(f, r, o, fcompare):
-    subprocess.call(["./pear-new", "-f", f, "-r", r, "-o", o, "-c", "0"], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
+    subprocess.call(["../src/pear", "-f", f, "-r", r, "-o", o, "-c", "0"], stdout=open(os.devnull, "w"), stderr=subprocess.STDOUT)
     shutil.copyfile(o+".assembled.fastq", fcompare)
     os.remove(o+".discarded.fastq")
     os.remove(o+".unassembled.forward.fastq")
@@ -47,6 +47,7 @@ if __name__ == "__main__":
                   ]
     i = 1
     for test in test_files:
+        #gen(test[0], test[1], "temp", test[2])
         flag = unit_test(test[0], test[1], "temp", test[2])
         print("Test " + repr(i) + " " + flag)
         i = i + 1
