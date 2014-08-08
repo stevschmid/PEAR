@@ -47,7 +47,7 @@ if __name__ == "__main__":
                   ]
     i = 1
     for test in test_files:
-        gen(test[0], test[1], "temp", test[2])
-        #flag = unit_test(test[0], test[1], "temp", test[2])
-        #print("Test " + repr(i) + " " + flag)
+        #gen(test[0], test[1], "temp", test[2])
+        flag = unit_test(test[0], test[1], "temp", test[2])
+        print("Test " + repr(i) + " " + flag)
         i = i + 1
