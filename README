@@ -26,12 +26,28 @@ For more information, requests and bug-reports visit our website at
 
                 http://www.exelixis-lab.org/web/software/pear
 
+Requirements:
+-------------
+PEAR  requires  the  autotools build system and libtool in order to proceed with
+the  installation  steps. In case you do not have autotools and libtool, you can
+install them using the command:
+
+sudo apt-get install build-essential autoconf automake libtool
+
+Additionally, if  you would like to compile bzip2 support in PEAR, you will need
+to  have  bzlib installed on your system before installing PEAR. You can install
+it with:
+
+sudo apt-get install libbz2-dev
+
 How to compile:
 ---------------
 1. git clone https://github.com/xflouris/PEAR.git
 2. cd PEAR
-3. make
-4. make install
+3. ./autogen.sh
+4. ./configure
+5. make
+6. sudo make install
 
 How to run self-tests:
 ----------------------
@@ -78,5 +94,6 @@ responsibility.
 
 How to cite:
 ------------
-J. Zhang, K. Kobert, T. Flouri, A. Stamatakis. PEAR: A fast and accurate Illimuna Paired-End reAd mergeR
+J. Zhang, K. Kobert, T. Flouri, A. Stamatakis. PEAR: A fast and accurate Illimuna
+Paired-End reAd mergeR. Bioinformatics 30(5): 614-620, 2014.
 
