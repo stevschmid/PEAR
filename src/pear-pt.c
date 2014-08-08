@@ -75,8 +75,6 @@ char cpl_nt[16]   =   {0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15};
 /* translate from a 4-bit code to a table of 6 entries (AC, AG, AT, CG, CT, GT) */
 int translate[16] =  {-1, 0, 1, 4, 2, 5, 7, -1, 3, 6,  8, -1,  9, -1, -1, -1};
 
-#define UNCALLED 8              /* degenerate bases start from 9 */
-
 extern void print_number (size_t x);
 
 static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled);
@@ -797,18 +795,18 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
      switch (score_method)
       {
         case 1:
-          *score -= 1;
+          *score = *score - (2 * penaltyEF[i][k])  + 1;
           *oes = *score;
           break;
 
         case 2:
           *score -= penaltyEF[i][k];
-          *oes = *oes - 1;
+          *oes = *oes - (2 * penaltyEF[i][k]) + 1;
           break;
 
         case 3:
           *score -= 1;
-          *oes = *oes - 1;
+          *oes = *oes - (2 * penaltyEF[i][k]) + 1;
           break;
         default:
           assert (0);
