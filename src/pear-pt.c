@@ -70,7 +70,7 @@ char revmap_nt[16] =
  };
 
 /* complements of the nucleotides */
-char cpl_nt[16]   =   {0, 8, 4, 3, 2, 5, 6, 7, 1, 9, 10, 11, 12, 13, 14, 15};
+char cpl_nt[16]   =   {0, 8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15};
 
 /* translate from a 4-bit code to a table of 6 entries (AC, AG, AT, CG, CT, GT) */
 int translate[16] =  {-1, 0, 1, 4, 2, 5, 7, -1, 3, 6,  8, -1,  9, -1, -1, -1};
