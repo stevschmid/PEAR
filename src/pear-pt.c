@@ -1071,6 +1071,8 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
       }
    }
 
+  if (!bestScoreCase) return (0);
+
   if (sw->test == 1) 
     st_pass = stat_test2 (sw->p_value, best_oes, sw->min_overlap, ef->q);
   else
@@ -2468,8 +2470,7 @@ static void destroy_thr_global (void)
     @return
       Returns 1 in case of success, 0 if error
 */
-static int
-init_files (struct user_args * sw)
+static int init_files (struct user_args * sw)
 {
   int i, j;
   char * out[4];

@@ -280,8 +280,8 @@ void init_fastq_reader_double_buffer (const char * file1,
   sec_fwd->rawdata_size      = sec_rev->rawdata_size      = rawdata_size;
 
   /* allocate memory */
-  //mempool = calloc (1,memsize);
-  mempool = malloc (memsize);
+  mempool = calloc (1,memsize);
+  //mempool = malloc (memsize);
   if (!mempool)
    {
      fprintf (stderr, "Failed to allocate memory...\n");
