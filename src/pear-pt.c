@@ -1492,6 +1492,8 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
       }
    }
 
+  if (!bestScoreCase) return (0);
+
   /* do a statistical test */
   if (sw->test == 1) 
     st_pass = stat_test2 (sw->p_value, best_oes, sw->min_overlap, ef->q);
