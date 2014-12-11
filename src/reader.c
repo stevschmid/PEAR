@@ -25,6 +25,9 @@ static int eof1 = 1, eof2 = 1;
 static int forward_file_type = PEAR_FILETYPE_UNKNOWN;
 static int reverse_file_type = PEAR_FILETYPE_UNKNOWN;
 
+extern unsigned long total_progress;
+extern unsigned long current_progress;
+
 #ifdef HAVE_BZLIB_H
 BZFILE * fd1;
 BZFILE * fd2;
@@ -261,6 +264,15 @@ void init_fastq_reader_double_buffer (const char * file1,
 
   fp1 = fopen (file1, "rb");
   fp2 = fopen (file2, "rb");
+
+  fseek(fp1, 0, SEEK_END);
+  fseek(fp2, 0, SEEK_END);
+
+  total_progress  = ftell(fp1);
+  total_progress += ftell(fp2);
+
+  rewind(fp1);
+  rewind(fp2);
 
   #ifdef HAVE_BZLIB_H
   fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
@@ -629,6 +641,10 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
   else
     nBytes = BZ2_bzRead (&error, fp, block->rawdata + remainder, block->rawdata_size - remainder);
   #endif
+
+  /* TODO: Fix for BZ2 - either change to compressed bytes, or modify ftell at fopen */
+  current_progress += nBytes;
+
   if (!nBytes && !remainder)
    {
  //    if (remainder) printf ("REMAINDER Exists\n"); else printf ("No remainder\n");

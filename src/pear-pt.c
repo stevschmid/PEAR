@@ -142,6 +142,9 @@ static unsigned long g_count_unassembled = 0;
 static unsigned long g_count_total       = 0;
 
 
+unsigned long total_progress = 0;
+unsigned long current_progress = 0;
+
 
 //int stat_test (double, double, int, double);
 int stat_test2 (double, double, int, double);
@@ -2110,7 +2113,9 @@ static void * entry_point_ef (void * data)
      if (thr_local->block == thr_global.xblock && thr_global.io_thread == thr_local->id)
       {
         pthread_mutex_lock (&cs_mutex_io);
-        fprintf (stdout, "."); fflush (stdout);
+        //fprintf (stdout, "."); fflush (stdout);
+        fprintf (stdout,"\rAssemblying reads: %d\%%", (int) ((current_progress / (double)total_progress) * 100));
+        fflush(stdout);
         write_data (thr_global.xblock->fwd->reads, thr_global.xblock->rev->reads, thr_global.xblock->reads, thr_global.fd, thr_local->sw);
         // TODO: read_data ();
         elms = db_get_next_reads (thr_global.xblock->fwd, 
@@ -2840,8 +2845,10 @@ int main (int argc, char * argv[])
    }
   
   init_scores(ef);
+  current_progress = 0;
 
-  fprintf (stdout, "Assemblying reads..................: [");
+  //fprintf (stdout, "Assemblying reads..................: [");
+  fprintf (stdout, "Assemblying reads: 0\%%");
   fflush (stdout);
 
   blockElements = db_get_next_reads (thr_global.yblock->fwd, 
@@ -2874,7 +2881,7 @@ int main (int argc, char * argv[])
    {
      pthread_join (tid[i], NULL);
    }
-  printf ("]\n\n");
+  printf ("\n\n");
 
   g_count_total = g_count_assembled + g_count_discarded + g_count_unassembled;
   printf ("Assembled reads ...................: ");
