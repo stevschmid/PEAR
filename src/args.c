@@ -24,7 +24,7 @@ static struct option long_options[] =
  {
    { "phred-base",        required_argument, NULL, 'b' },
    { "empirical-freqs",   no_argument,       NULL, 'e' },
-   { "left-fastq",        required_argument, NULL, 'f' },
+   { "forward-fastq",     required_argument, NULL, 'f' },
    { "test-method",       required_argument, NULL, 'g' },
    { "help",              no_argument,       NULL, 'h' },
    { "threads",           required_argument, NULL, 'j' },
@@ -33,13 +33,14 @@ static struct option long_options[] =
    { "output",            required_argument, NULL, 'o' },
    { "p-value",           required_argument, NULL, 'p' },
    { "quality-theshold",  required_argument, NULL, 'q' },
-   { "right-fastq",       required_argument, NULL, 'r' },
+   { "reverse-fastq",     required_argument, NULL, 'r' },
    { "score-method",      required_argument, NULL, 's' },
    { "min-trim-length",   required_argument, NULL, 't' },
    { "max-uncalled-base", required_argument, NULL, 'u' }, 
    { "min-overlap",       required_argument, NULL, 'v' },
    { "memory",            required_argument, NULL, 'y' },
    { "cap",               required_argument, NULL, 'c' },
+   { "nbase",             no_argument,       NULL, 'z' },
    { NULL,                0,                 NULL, 0   }
  };
 
@@ -128,6 +129,9 @@ void usage (void)
   fprintf (stdout, "  -c, --cap                   <int>     Specify  the upper bound for the resulting quality score. If\n"
                    "                                        set to zero, capping is disabled. (default: 40)\n");
   fprintf (stdout, "  -j, --threads               <int>     Number of threads to use\n");
+  fprintf (stdout, "  -z, --nbase                           When  merging  a  base-pair  that  consists of two non-equal\n"
+                   "                                        bases  out  of which none is degenerate, set the merged base\n"
+                   "                                        to N and use the highest quality score of the two bases\n");
   fprintf (stdout, "  -h, --help                            This help screen.\n\n");
 }
 
@@ -167,8 +171,9 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
   sw->memory        = 200000000;
   sw->threads       =         1;
   sw->cap           =        40;
+  sw->nbase         =         0;
 
-  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:", long_options, &oi)) != -1)
+  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:z", long_options, &oi)) != -1)
    {
      switch (opt)
       {
@@ -352,6 +357,9 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
            }
           sw->memory *= x;
           if (!sw->memory) -- sw->memory;
+          break;
+        case 'z':
+          sw->nbase = 1;
           break;
         default:
           fprintf (stderr, "Invalid argument -%c\n", opt);

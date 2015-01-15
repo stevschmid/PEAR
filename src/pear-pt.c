@@ -154,7 +154,8 @@ static double assemble_overlap (fastqRead * left,
                          int base_left, 
                          int base_right, 
                          int ol_size, 
-                         fastqRead * ai);
+                         fastqRead * ai,
+                         struct user_args * sw);
 
 double      new_eq[4096];
 double     new_neq[4096];
@@ -789,10 +790,6 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
         
       }
      i = translate[dleft | dright];
-     if (i == -1)
-      {
-        printf ("dleft: %d\n dright: %d\n", dleft, dright);
-      }
      assert (i != -1);
      k = ((int)qleft << 6) | (int)qright;
      switch (score_method)
@@ -1133,7 +1130,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
                
              
-             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward);
+             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
 
@@ -1164,7 +1161,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
           
-          assemble_overlap (forward, reverse, best_overlap, 0, nReverse, forward);
+          assemble_overlap (forward, reverse, best_overlap, 0, nReverse, forward, sw);
 
           forward->data[best_overlap + nReverse]   = 0;
           forward->qscore[best_overlap + nReverse] = 0;
@@ -1184,7 +1181,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
-          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward);
+          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
           
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
@@ -1318,7 +1315,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE);
-           assemble_overlap (forward, reverse, 0, 0, n, forward);
+           assemble_overlap (forward, reverse, 0, 0, n, forward, sw);
            forward->data[n]   = 0;
            forward->qscore[n] = 0;
          }
@@ -1342,7 +1339,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
          {
            PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
            
-           assemble_overlap (forward, reverse, n - best_overlap, 0, best_overlap, forward);
+           assemble_overlap (forward, reverse, n - best_overlap, 0, best_overlap, forward, sw);
            memmove (reverse->data,   reverse->data   + best_overlap,  n - best_overlap);
            memmove (reverse->qscore, reverse->qscore + best_overlap,  n - best_overlap);
            /* THIS IS WRONG */
@@ -1369,7 +1366,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
-        assemble_overlap (forward, reverse, 0, n - best_overlap, best_overlap, forward);
+        assemble_overlap (forward, reverse, 0, n - best_overlap, best_overlap, forward, sw);
         
         forward->data[best_overlap]   = 0;
         forward->qscore[best_overlap] = 0;
@@ -1553,7 +1550,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
                
              
-             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward);
+             assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
 
@@ -1584,7 +1581,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
           
-          assemble_overlap (forward, reverse, 0, nReverse - nForward - best_overlap, nForward, forward);
+          assemble_overlap (forward, reverse, 0, nReverse - nForward - best_overlap, nForward, forward, sw);
 
           memmove (reverse->data,   reverse->data + nReverse - best_overlap,   best_overlap);
           memmove (reverse->qscore, reverse->qscore + nReverse - best_overlap, best_overlap);
@@ -1607,7 +1604,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
 
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
-          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward);
+          assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
           
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
@@ -1766,7 +1763,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(left,PEAR_READ_OUT_SINGLE);
-           assemble_overlap (left, right, 0, 0, n, left);
+           assemble_overlap (left, right, 0, 0, n, left, sw);
            left->data[n]   = 0;
            left->qscore[n] = 0;
          }
@@ -1789,7 +1786,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
         if ((n << 1) - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(left,PEAR_READ_OUT_BOTH);
-           assemble_overlap (left, right, n - best_overlap, 0, best_overlap, left);
+           assemble_overlap (left, right, n - best_overlap, 0, best_overlap, left, sw);
            memmove (right->data,   right->data   + best_overlap,  n - best_overlap);
            memmove (right->qscore, right->qscore + best_overlap,  n - best_overlap);
            /* THIS IS WRONG */
@@ -1816,7 +1813,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
 
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
-        assemble_overlap (left, right, 0, n - best_overlap, best_overlap, left);
+        assemble_overlap (left, right, 0, n - best_overlap, best_overlap, left, sw);
         
         left->data[best_overlap]   = 0;
         left->qscore[best_overlap] = 0;
@@ -1843,10 +1840,9 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
     @param base_right Position in the reverse read where the overlap starts
     @param ol_size    Overlap size
     @param ai         Buffer where to store the merge read
-    @param phred_base
 */
 
-static double assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai)
+static double assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai, struct user_args * sw)
 {
   int           i; 
   char          x, y;
@@ -1874,7 +1870,7 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
      else if (DEGENERATE(y))
       {
         //exp_match += 0.25; 
-        ai->data[base_left + i]          = x;
+        ai->data[base_left + i]   = x;
         ai->qscore[base_left + i] = qx;
       }
      else
@@ -1893,13 +1889,29 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
            
            if (qx > qy)
             {
-              ai->data[base_left + i]   =  x;
-              ai->qscore[base_left + i] = qx;
+              if (sw->nbase)    /* nbase option */
+              {
+                ai->data[base_left + i] = map_nt['N'];
+                ai->qscore[base_left + i] = qx;
+              }
+              else
+              {
+                ai->data[base_left + i]   =  x;
+                ai->qscore[base_left + i] = qx;
+              }
             }
            else
             {
-              ai->data[base_left + i]   =  y;
-              ai->qscore[base_left + i] = qy;
+              if (sw->nbase)    /* nbase option */
+              {
+                ai->data[base_left + i] = map_nt['N'];
+                ai->qscore[base_left + i] = qy;
+              }
+              else
+              {
+                ai->data[base_left + i]   =  y;
+                ai->qscore[base_left + i] = qy;
+              }
             }
          }
       }
@@ -2813,7 +2825,7 @@ int main (int argc, char * argv[])
      printf ("DONE\n");
      printf ("  A: %f\n  C: %f\n  G: %f\n  T: %f\n", ef->pa, ef->pc, ef->pg, ef->pt);
      printf ("  %ld uncalled bases\n", ef->freqn);      /* TODO: Note that only N's are reported */
-     rewind_files ();
+     rewind_files (sw.fastq_left, sw.fastq_right);
      thr_global.xblock->fwd->unread = thr_global.xblock->rev->unread = NULL;
      thr_global.yblock->fwd->unread = thr_global.yblock->rev->unread = NULL;
      thr_global.yblock->reads = thr_global.xblock->reads = 0;

@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.67])
-AC_INIT([pear], [0.9.4], [Tomas.Flouri@h-its.org])
+AC_INIT([pear], [0.9.6], [Tomas.Flouri@h-its.org])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/pear-pt.c])
 AC_CONFIG_HEADERS([src/config.h])
@@ -37,8 +37,10 @@ AC_CHECK_FUNCS([memmove pow strtol])
 
 have_pthreads=no
 have_bzlib=no
+have_zlib=no
 AC_SEARCH_LIBS([pthread_create], [pthread], [have_pthreads=yes])
 AC_SEARCH_LIBS([BZ2_bzCompress], [bz2], [have_bzlib=yes])
+AC_SEARCH_LIBS([zlibVersion], [z], [have_zlib=yes])
 
 if test "x${have_pthreads}" = "xyes"; then
   AC_CHECK_HEADERS([pthread.h], [], [have_pthreads=no])
@@ -48,7 +50,12 @@ if test "x${have_bzlib}" = "xyes"; then
   AC_CHECK_HEADERS([bzlib.h], [], [have_bzlib=no])
 fi
 
-AM_CONDITIONAL(HAVE_BZLIB, test, "x${have_pthreads}" = "xyes")
+if test "x${have_zlib}" = "xyes"; then
+  AC_CHECK_HEADERS([zlib.h], [], [have_zlib=no])
+fi
+
+AM_CONDITIONAL(HAVE_BZLIB, test, "x${have_bzlib}" = "xyes")
+AM_CONDITIONAL(HAVE_ZLIB, test, "x${have_zlib}" = "xyes")
 AM_CONDITIONAL(HAVE_PTHREADS, test "x${have_pthreads}" = "xyes")
 AM_PROG_CC_C_O
 

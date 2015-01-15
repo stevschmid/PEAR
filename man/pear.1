@@ -1,4 +1,4 @@
-.TH PEAR 1 "1 Oct 2013" "PEAR" "PEAR manual"
+.TH PEAR 1 "15 Jan 2015" "PEAR 0.9.6" "PEAR manual"
 .SH NAME
 PEAR - Paired-end reads merger
 .SH SYNOPSIS
@@ -111,6 +111,12 @@ denoting Kilobytes, Megabytes and Gigabytes, respectively. Bytes are assumed in 
 .TP
 \fB\-j\fR, \fB\-\-threads=\fITHREADS\fR\fR
 Use \fITHREADS\fR number of threads
+.TP
+\fB\-c\fR, \fB\-\-cap=\fIVALUE\fR\fR
+Specify the upper bound for the resulting quality score. If set to zero, capping is disabled. (default: \fB40\fR)
+.TP
+\fB\-z\fR, \fB\-\-nbase\fR
+When merging a base-pair that consists of two non equal bases out of which none is degenerate, set the merged base to \fBN\fR, with the highest quality score of the two bases.
 .PP
 \fB\-h\fR, \fB\-\-help\fR
 This help screen
@@ -125,4 +131,4 @@ This help screen
 .SH BUGS
 Report \fBPEAR\fR bugs to \fBpear-users@googlegroups.com\fR
 .SH SEE ALSO
-For more information, please refer to the \fBPEAR\fR, which is available online at \fBhttp://www.exelixis-lab.org/pear\fR
+For more information, please refer to the \fBPEAR\fR, which is available online at \fBhttp://www.exelixis-lab.org/web/software/pear\fR

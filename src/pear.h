@@ -3,13 +3,17 @@
 #include "config.h"
 
 #define PROGRAM_NAME            "PEAR"
-#define PROGRAM_VERSION         "0.9.5"
-#define VERSION_DATE            "September 15, 2014"
+#define PROGRAM_VERSION         "0.9.6"
+#define VERSION_DATE            "January 15, 2015"
 #define LICENCE                 "Creative Commons Licence"
 #define CONTACT                 "Tomas.Flouri@h-its.org and Jiajie.Zhang@h-its.org"
 
-#ifdef HAVE_BZLIB_H
+#if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+#define COMPILE_INFO            " - [+bzlib +zlib]"
+#elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
 #define COMPILE_INFO            " - [+bzlib]"
+#elif (!defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+#define COMPILE_INFO            " - [+zlib]"
 #else
 #define COMPILE_INFO           ""
 #endif

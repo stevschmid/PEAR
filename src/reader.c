@@ -9,6 +9,9 @@
 #ifdef HAVE_BZLIB_H
 #include <bzlib.h>
 #endif
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
 
 #define READ_SIZE 400
 
@@ -25,12 +28,25 @@ static int eof1 = 1, eof2 = 1;
 static int forward_file_type = PEAR_FILETYPE_UNKNOWN;
 static int reverse_file_type = PEAR_FILETYPE_UNKNOWN;
 
+#ifdef HAVE_BZLIB_H
+static unsigned char magic_bzip[] = "\x42\x5a";
+#endif
+#ifdef HAVE_ZLIB_H
+static unsigned char magic_gzip[] = "\x1f\x8b";
+#endif
+
 extern unsigned long total_progress;
 extern unsigned long current_progress;
+
+
 
 #ifdef HAVE_BZLIB_H
 BZFILE * fd1;
 BZFILE * fd2;
+#endif
+#ifdef HAVE_ZLIB_H
+gzFile gz_fd1 = NULL;
+gzFile gz_fd2 = NULL;
 #endif
 
 static void comp_mem (size_t memsize, size_t * reads_count, size_t * rawdata_size);
@@ -57,7 +73,10 @@ static int check_file_magic (FILE * fp)
   if (cnt <4) return PEAR_FILETYPE_UNKNOWN;
 
 #ifdef HAVE_BZLIB_H
-  if (!strncmp (header, "BZh", 3)) return PEAR_FILETYPE_BZIP2;
+  if (!memcmp(header, magic_bzip, 2)) return PEAR_FILETYPE_BZIP2;
+#endif
+#ifdef HAVE_ZLIB_H
+  if (!memcmp(header, magic_gzip, 2)) return PEAR_FILETYPE_GZIP;
 #endif
 
   if (header[0] == '@') return PEAR_FILETYPE_FASTQ;
@@ -89,9 +108,17 @@ int pear_check_files (const char * f1, const char * f2)
 
   if (forward_file_type == PEAR_FILETYPE_UNKNOWN)
    {
-#ifdef HAVE_BZLIB_H
+#if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+     fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
+                      "Ensure it is a BZIP2/GZIP compressed FASTQ file or "
+                      "plain FASTQ.\n", f1);
+#elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
      fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
                       "Ensure it is a BZIP2 compressed FASTQ file or "
+                      "plain FASTQ.\n", f1);
+#elif (defined(HAVE_ZLIB_H) && !defined(HAVE_BZLIB_H))
+     fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
+                      "Ensure it is a GZIP compressed FASTQ file or "
                       "plain FASTQ.\n", f1);
 #else
      fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. "
@@ -100,9 +127,17 @@ int pear_check_files (const char * f1, const char * f2)
    }
   if (reverse_file_type == PEAR_FILETYPE_UNKNOWN)
    {
-#ifdef HAVE_BZLIB_H
+#if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+     fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
+                      "Ensure it is a BZIP2/GZIP compressed FASTQ file or "
+                      "plain FASTQ.\n", f2);
+#elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
      fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
                       "Ensure it is a BZIP2 compressed FASTQ file or "
+                      "plain FASTQ.\n", f2);
+#elif (defined(HAVE_ZLIB_H) && !defined(HAVE_BZLIB_H))
+     fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. " 
+                      "Ensure it is a GZIP compressed FASTQ file or "
                       "plain FASTQ.\n", f2);
 #else
      fprintf (stderr, "[ERROR] - Cannot determine the file type of %s. "
@@ -116,7 +151,7 @@ int pear_check_files (const char * f1, const char * f2)
 
   if (reverse_file_type != forward_file_type)
    {
-     fprintf (stderr, "[ERROR] - This version of PEAR requires that input reads (forward and reverse) files are of the same format, i.e. both plain FASTQ or both BZIP2 compressed FASTQ\n");
+     fprintf (stderr, "[ERROR] - This version of PEAR requires that input reads (forward and reverse) files are of the same format, i.e. both plain FASTQ or both BZIP2/GZIP compressed FASTQ\n");
      return (0);
    }
 
@@ -175,7 +210,7 @@ static void comp_mem (size_t memsize, size_t * reads_count, size_t * rawdata_siz
   *rawdata_size = u * y;
 }
 
-void rewind_files (void)
+void rewind_files (const char * file1, const char * file2)
 {
   #ifdef HAVE_BZLIB_H
   int error;
@@ -191,6 +226,22 @@ void rewind_files (void)
 
   fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
   fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
+
+  #ifdef HAVE_ZLIB_H
+  if (forward_file_type == PEAR_FILETYPE_GZIP)
+  {
+    gzclose(gz_fd1);
+    gzclose(gz_fd2);
+
+    gz_fd1 = gzopen(file1, "r");
+    gz_fd2 = gzopen(file2, "r");
+    if (!gz_fd1 || !gz_fd2)
+    {
+      printf ("Error: creating gzip file handlers\n");
+      exit(1);
+    }
+  }
   #endif
 
 }
@@ -277,6 +328,15 @@ void init_fastq_reader_double_buffer (const char * file1,
   #ifdef HAVE_BZLIB_H
   fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
   fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
+  #ifdef HAVE_ZLIB_H
+  gz_fd1 = gzopen (file1, "r");
+  gz_fd2 = gzopen (file2, "r");
+  if (!gz_fd1 || !gz_fd2)
+  {
+    printf ("Error: creating gzip file handlers\n");
+    exit(1);
+  }
   #endif
 
   if (!fp1 || !fp2)
@@ -434,6 +494,15 @@ init_fastq_reader (const char * file1, const char * file2, size_t memsize, memBl
   #ifdef HAVE_BZLIB_H
   fd1 = BZ2_bzReadOpen (&error, fp1, 0, 0, NULL, 0); 
   fd2 = BZ2_bzReadOpen (&error, fp2, 0, 0, NULL, 0); 
+  #endif
+  #ifdef HAVE_ZLIB_H
+  gz_fd1 = gzopen (file1, "r");
+  gz_fd2 = gzopen (file2, "r");
+  if (!gz_fd1 || !gz_fd2)
+  {
+    printf ("Error: creating gzip file handlers\n");
+    exit(1);
+  }
   #endif
 
   fwd->max_reads_count   = rev->max_reads_count   = reads_count;
@@ -601,8 +670,12 @@ static INLINE unsigned long parse_block (memBlock * block)
   return elms;
 }
 
-#ifdef HAVE_BZLIB_H
-int db_read_fastq_block (memBlock * block, BZFILE * fp, memBlock * old_block)
+#if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+int db_read_fastq_block (memBlock * block, FILE * fp, BZFILE * bz_fp, gzFile gz_fp, memBlock * old_block)
+#elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
+int db_read_fastq_block (memBlock * block, FILE * fp, BZFILE * bz_fp, memBlock * old_block)
+#elif (!defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+int db_read_fastq_block (memBlock * block, FILE * fp, gzFile gz_fp, memBlock * old_block)
 #else
 int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
 #endif
@@ -611,6 +684,7 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
   size_t remainder;
   #ifdef HAVE_BZLIB_H
   int error;
+  int valid_format = 0;
   #endif
 
   /* TODO: check if something from the previous block exists */
@@ -633,17 +707,53 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
    }
   
   /* TODO: Check this line again for correctness */
-  #ifdef HAVE_BZLIB_H
+  #if (defined( HAVE_BZLIB_H) || defined(HAVE_ZLIB_H))
   if (forward_file_type == PEAR_FILETYPE_FASTQ)
   #endif
+  {
     nBytes = fread (block->rawdata + remainder, sizeof (char), block->rawdata_size - remainder, fp);
-  #ifdef HAVE_BZLIB_H
+    valid_format = 1;
+  }
+  #if (defined(HAVE_BZLIB_H) || defined(HAVE_ZLIB_H))
   else
-    nBytes = BZ2_bzRead (&error, fp, block->rawdata + remainder, block->rawdata_size - remainder);
+   {
+     #ifdef HAVE_BZLIB_H
+     if (forward_file_type == PEAR_FILETYPE_BZIP2)
+     {
+       nBytes = BZ2_bzRead (&error, bz_fp, block->rawdata + remainder, block->rawdata_size - remainder);
+       valid_format = 1;
+     }
+     #endif
+     #ifdef HAVE_ZLIB_H
+     if (forward_file_type == PEAR_FILETYPE_GZIP)
+     {
+       nBytes = gzread (gz_fp, block->rawdata + remainder, block->rawdata_size - remainder);
+       valid_format = 1;
+     }
+     #endif
+   }
   #endif
+  
+  if (!valid_format) assert(0);
 
   /* TODO: Fix for BZ2 - either change to compressed bytes, or modify ftell at fopen */
-  current_progress += nBytes;
+  #if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+  if (forward_file_type == PEAR_FILETYPE_GZIP)
+    current_progress = gzoffset(gz_fd1) + gzoffset(gz_fd2);
+  else 
+    current_progress = ftell(fp1) + ftell(fp2);
+  #elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
+    current_progress = ftell(fp1) + ftell(fp2);
+  #elif (!defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+  if (forward_file_type == PEAR_FILETYPE_GZIP)
+    current_progress = gzoffset(gz_fd1) + gzoffset(gz_fd2);
+  else
+    current_progress = ftell(fp1) + ftell(fp2);
+  #else
+    current_progress = ftell(fp1) + ftell(fp2);
+  #endif
+
+ // current_progress += nBytes;
 
   if (!nBytes && !remainder)
    {
@@ -665,20 +775,18 @@ unsigned int db_get_next_reads (memBlock * fwd_block, memBlock * rev_block, memB
 {
   unsigned int n1, n2;
 
-  #ifdef HAVE_BZLIB_H
-  if (forward_file_type == PEAR_FILETYPE_BZIP2)
-   {
-     eof1 = db_read_fastq_block (fwd_block, fd1, old_fwd_block);
-     eof2 = db_read_fastq_block (rev_block, fd2, old_rev_block);
-   }
-  else
-   {
-     eof1 = db_read_fastq_block (fwd_block, fp1, old_fwd_block);
-     eof2 = db_read_fastq_block (rev_block, fp2, old_rev_block);
-   }
+  #if (defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+     eof1 = db_read_fastq_block (fwd_block, fp1, fd1, gz_fd1, old_fwd_block);
+     eof2 = db_read_fastq_block (rev_block, fp2, fd2, gz_fd2, old_rev_block);
+  #elif (defined(HAVE_BZLIB_H) && !defined(HAVE_ZLIB_H))
+     eof1 = db_read_fastq_block (fwd_block, fp1, fd1, old_fwd_block);
+     eof2 = db_read_fastq_block (rev_block, fp2, fd2, old_rev_block);
+  #elif (!defined(HAVE_BZLIB_H) && defined(HAVE_ZLIB_H))
+     eof1 = db_read_fastq_block (fwd_block, fp1, gz_fd1, old_fwd_block);
+     eof2 = db_read_fastq_block (rev_block, fp2, gz_fd2, old_rev_block);
   #else
-  eof1 = db_read_fastq_block (fwd_block, fp1, old_fwd_block);
-  eof2 = db_read_fastq_block (rev_block, fp2, old_rev_block);
+    eof1 = db_read_fastq_block (fwd_block, fp1, old_fwd_block);
+    eof2 = db_read_fastq_block (rev_block, fp2, old_rev_block);
   #endif
 
   n1 = parse_block (fwd_block);

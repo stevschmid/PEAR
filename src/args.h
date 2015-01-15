@@ -36,6 +36,7 @@ struct user_args
    size_t       memory;       /**< @brief Amount of memory to be used */
    int          threads;      /**< @brief Number of threads to use */
    int          cap;          /**< @brief Quality score cap value */
+   int          nbase;        /**< @brief When merging, use N if one of the two bases is degenerate */
  };
 
 void usage (void);
