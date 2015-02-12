@@ -22,26 +22,26 @@ extern void print_number (size_t x);
 */
 static struct option long_options[] =
  {
-   { "phred-base",        required_argument, NULL, 'b' },
-   { "empirical-freqs",   no_argument,       NULL, 'e' },
-   { "forward-fastq",     required_argument, NULL, 'f' },
-   { "test-method",       required_argument, NULL, 'g' },
-   { "help",              no_argument,       NULL, 'h' },
-   { "threads",           required_argument, NULL, 'j' },
-   { "max-asm-length",    required_argument, NULL, 'm' },
-   { "min-asm-length",    required_argument, NULL, 'n' },
-   { "output",            required_argument, NULL, 'o' },
-   { "p-value",           required_argument, NULL, 'p' },
-   { "quality-theshold",  required_argument, NULL, 'q' },
-   { "reverse-fastq",     required_argument, NULL, 'r' },
-   { "score-method",      required_argument, NULL, 's' },
-   { "min-trim-length",   required_argument, NULL, 't' },
-   { "max-uncalled-base", required_argument, NULL, 'u' }, 
-   { "min-overlap",       required_argument, NULL, 'v' },
-   { "memory",            required_argument, NULL, 'y' },
-   { "cap",               required_argument, NULL, 'c' },
-   { "nbase",             no_argument,       NULL, 'z' },
-   { NULL,                0,                 NULL, 0   }
+   { "phred-base",          required_argument, NULL, 'b' },
+   { "empirical-freqs",     no_argument,       NULL, 'e' },
+   { "forward-fastq",       required_argument, NULL, 'f' },
+   { "test-method",         required_argument, NULL, 'g' },
+   { "help",                no_argument,       NULL, 'h' },
+   { "threads",             required_argument, NULL, 'j' },
+   { "max-assembly-length", required_argument, NULL, 'm' },
+   { "min-assembly-length", required_argument, NULL, 'n' },
+   { "output",              required_argument, NULL, 'o' },
+   { "p-value",             required_argument, NULL, 'p' },
+   { "quality-threshold",   required_argument, NULL, 'q' },
+   { "reverse-fastq",       required_argument, NULL, 'r' },
+   { "score-method",        required_argument, NULL, 's' },
+   { "min-trim-length",     required_argument, NULL, 't' },
+   { "max-uncalled-base",   required_argument, NULL, 'u' }, 
+   { "min-overlap",         required_argument, NULL, 'v' },
+   { "memory",              required_argument, NULL, 'y' },
+   { "cap",                 required_argument, NULL, 'c' },
+   { "nbase",               no_argument,       NULL, 'z' },
+   { NULL,                  0,                 NULL, 0   }
  };
 
 /** @brief Usage help screen
@@ -234,6 +234,8 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
              printf ("Invalid max-assembly-length.\n");
              return (0);
            }
+          if (sw->max_asm_len == 0)
+            sw->max_asm_len = 999999;
           break;
 
         case 'n':
