@@ -39,8 +39,16 @@ have_pthreads=no
 have_bzlib=no
 have_zlib=no
 AC_SEARCH_LIBS([pthread_create], [pthread], [have_pthreads=yes])
-AC_SEARCH_LIBS([BZ2_bzCompress], [bz2], [have_bzlib=yes])
-AC_SEARCH_LIBS([zlibVersion], [z], [have_zlib=yes])
+
+AC_ARG_ENABLE(bzip2, AS_HELP_STRING([--disable-bzip2], [Disable bzip2 support]))
+AS_IF([test "x$enable_bzip2" != "xno"], [
+  AC_SEARCH_LIBS([BZ2_bzCompress], [bz2], [have_bzlib=yes])
+])
+
+AC_ARG_ENABLE(zlib, AS_HELP_STRING([--disable-zlib], [Disable zlib support]))
+AS_IF([test "x$enable_zlib" != "xno"], [
+  AC_SEARCH_LIBS([zlibVersion], [z], [have_zlib=yes])
+])
 
 if test "x${have_pthreads}" = "xyes"; then
   AC_CHECK_HEADERS([pthread.h], [], [have_pthreads=no])
@@ -54,8 +62,8 @@ if test "x${have_zlib}" = "xyes"; then
   AC_CHECK_HEADERS([zlib.h], [], [have_zlib=no])
 fi
 
-AM_CONDITIONAL(HAVE_BZLIB, test, "x${have_bzlib}" = "xyes")
-AM_CONDITIONAL(HAVE_ZLIB, test, "x${have_zlib}" = "xyes")
+AM_CONDITIONAL(HAVE_BZLIB, test "x${have_bzlib}" = "xyes")
+AM_CONDITIONAL(HAVE_ZLIB, test "x${have_zlib}" = "xyes")
 AM_CONDITIONAL(HAVE_PTHREADS, test "x${have_pthreads}" = "xyes")
 AM_PROG_CC_C_O
 
