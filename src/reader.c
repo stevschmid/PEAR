@@ -682,7 +682,7 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
 {
   size_t nBytes;
   size_t remainder;
-  #ifdef HAVE_BZLIB_H
+  #if (defined(HAVE_BZLIB_H) || defined(HAVE_ZLIB_H))
   int error;
   int valid_format = 0;
   #endif

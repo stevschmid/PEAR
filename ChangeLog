@@ -1,3 +1,8 @@
+2015-04-9  Tomas Flouri  <Tomas.Flouri@h-its.org>
+    * Release 0.9.8
+    * Fixed missing define in reader.c 
+    * Changed AC_PREREQ to 2.63
+
 2015-01-15  Tomas Flouri  <Tomas.Flouri@h-its.org>
     * Release 0.9.6
     * Added zlib support

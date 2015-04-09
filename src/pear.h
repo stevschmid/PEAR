@@ -3,8 +3,8 @@
 #include "config.h"
 
 #define PROGRAM_NAME            "PEAR"
-#define PROGRAM_VERSION         "0.9.7"
-#define VERSION_DATE            "February 12, 2015"
+#define PROGRAM_VERSION         "0.9.8"
+#define VERSION_DATE            "April 9, 2015"
 #define LICENCE                 "Creative Commons Licence"
 #define CONTACT                 "Tomas.Flouri@h-its.org and Jiajie.Zhang@h-its.org"
 
