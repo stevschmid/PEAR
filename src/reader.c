@@ -682,10 +682,10 @@ int db_read_fastq_block (memBlock * block, FILE * fp, memBlock * old_block)
 {
   size_t nBytes;
   size_t remainder;
-  #if (defined(HAVE_BZLIB_H) || defined(HAVE_ZLIB_H))
+  #if (defined(HAVE_BZLIB_H))
   int error;
-  int valid_format = 0;
   #endif
+  int valid_format = 0;
 
   /* TODO: check if something from the previous block exists */
   /* check also if we do not have a large block that couldnt be read in one read */
