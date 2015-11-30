@@ -41,6 +41,7 @@ static struct option long_options[] =
    { "memory",              required_argument, NULL, 'y' },
    { "cap",                 required_argument, NULL, 'c' },
    { "nbase",               no_argument,       NULL, 'z' },
+   { "version",             no_argument,       NULL, 'x' },
    { NULL,                  0,                 NULL, 0   }
  };
 
@@ -321,6 +322,11 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
              return (0);
            }
           break;
+
+        case 'x':
+          fprintf(stdout, "%s %s\n", PROGRAM_NAME, PROGRAM_VERSION);
+          exit(1);
+
         case 'y':
           n = strlen (optarg);
           if (optarg[n - 1] != 'k' && optarg[n - 1] != 'K' &&
