@@ -7,7 +7,7 @@ AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/pear-pt.c])
 AC_CONFIG_HEADERS([src/config.h])
 
-if test -z $CFLAGS; then
+if test -z "$CFLAGS"; then
     CFLAGS='-O3'
 fi
 
