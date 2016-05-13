@@ -266,7 +266,7 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
   while (*data)
    {
      if (DEGENERATE(*(data - 1))) ++ (*uncalled);
-     if (*(data - 1) <= sw->qual_thres  && *data <= sw->qual_thres)
+     if (*(qscore - 1) <= sw->qual_thres  && *qscore <= sw->qual_thres)
       {
         *data   = 0;
         *qscore = 0;
@@ -275,6 +275,7 @@ static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
       }
      ++ i;
      ++ data;
+     ++ qscore;
    }
   if (DEGENERATE(*(data - 1))) ++ (*uncalled);
   *uncalled = (*uncalled) / i;

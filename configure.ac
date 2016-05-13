@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.63])
-AC_INIT([pear], [0.9.8], [Tomas.Flouri@h-its.org])
+AC_INIT([pear], [0.9.9], [Tomas.Flouri@h-its.org])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([src/pear-pt.c])
 AC_CONFIG_HEADERS([src/config.h])
