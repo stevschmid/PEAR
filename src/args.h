@@ -37,6 +37,7 @@ struct user_args
    int          threads;      /**< @brief Number of threads to use */
    int          cap;          /**< @brief Quality score cap value */
    int          nbase;        /**< @brief When merging, use N if one of the two bases is degenerate */
+   int          keep_dir;     /**< @brief Keep original direction for the unassembled reverse reads */
  };
 
 void usage (void);

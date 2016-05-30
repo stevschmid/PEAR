@@ -2047,6 +2047,12 @@ static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, F
       {
         add_base_qscores(fwd[i]->qscore, sw->phred_base, sw->cap);
         add_base_qscores(rev[i]->qscore, sw->phred_base, sw->cap);
+        if (sw->keep_dir)
+        {
+          mstrcpl(rev[i]->data);
+          mstrrev(rev[i]->data);
+          mstrrev(rev[i]->qscore);
+        }
         revconvert(fwd[i]->data);
         revconvert(rev[i]->data);
         if (PEAR_DECODE_ASM_TYPE(fwd[i]) == PEAR_READ_DISCARDED)                                            /* discarded */

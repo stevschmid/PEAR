@@ -42,6 +42,7 @@ static struct option long_options[] =
    { "cap",                 required_argument, NULL, 'c' },
    { "nbase",               no_argument,       NULL, 'z' },
    { "version",             no_argument,       NULL, 'x' },
+   { "keep-original",       no_argument,       NULL, 'k' },
    { NULL,                  0,                 NULL, 0   }
  };
 
@@ -133,6 +134,8 @@ void usage (void)
   fprintf (stdout, "  -z, --nbase                           When  merging  a  base-pair  that  consists of two non-equal\n"
                    "                                        bases  out  of which none is degenerate, set the merged base\n"
                    "                                        to N and use the highest quality score of the two bases\n");
+  fprintf (stdout, "  -k, --keep-original                   Do not reverse and complement the reverse reads when writing\n"
+                   "                                        the unassembled and discarded reads output.\n");
   fprintf (stdout, "  -h, --help                            This help screen.\n\n");
 }
 
@@ -173,8 +176,9 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
   sw->threads       =         1;
   sw->cap           =        40;
   sw->nbase         =         0;
+  sw->keep_dir      =         0;
 
-  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:z", long_options, &oi)) != -1)
+  while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:zk", long_options, &oi)) != -1)
    {
      switch (opt)
       {
@@ -368,6 +372,9 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
           break;
         case 'z':
           sw->nbase = 1;
+          break;
+        case 'k':
+          sw->keep_dir = 1;
           break;
         default:
           fprintf (stderr, "Invalid argument -%c\n", opt);
