@@ -90,7 +90,7 @@ static void DisplayInstance (struct user_args * sw);
 static void free_global_thread_memory (void);
 static void close_output_files (void);
 static void destroy_thr_global (void);
-static void fatal(const char * msg);
+void fatal(const char * format, ...) __attribute__ ((noreturn));
 #if 0
 static int validate_input (int nleft, int nright);
 #endif
@@ -172,9 +172,13 @@ double  penaltyEF[10][4096];
 
 
 
-static void fatal(const char * msg)
+void fatal(const char * format, ...)
 {
-  fprintf(stderr, "Error: %s\n", msg);
+  va_list argptr;
+  va_start(argptr, format);
+  vfprintf(stderr, format, argptr);
+  va_end(argptr);
+  fprintf(stderr, "\n");
   exit(1);
 }
 
@@ -190,7 +194,7 @@ static void convert(char * s)
      if ((m = map_nt[(int)c]) >= 0)
         *(s + i++) = m;
      else
-        fatal("Illegal character in sequence.");
+        fatal("Illegal character %c in sequence.", c);
    }
 }
 
