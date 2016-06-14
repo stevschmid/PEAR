@@ -4,6 +4,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <assert.h>
+#include <stdarg.h>
 #include "args.h"
 #include "emp.h"
 #include "reader.h"
@@ -194,7 +195,7 @@ static void convert(char * s)
      if ((m = map_nt[(int)c]) >= 0)
         *(s + i++) = m;
      else
-        fatal("Illegal character %c in sequence.", c);
+        fatal("Illegal character %d in sequence.", c);
    }
 }
 
