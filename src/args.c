@@ -11,12 +11,12 @@ extern void print_number (size_t x);
     @brief Command-line arguments parsing
 
     A data-structure and code used for handling the command-line arguments
-    parsing phase. 
+    parsing phase.
 */
 
 
 /** @brief Command-line short and long options
-    
+
     Command-line short and the corresponding long options structure required by
     the \a getopt_long function
 */
@@ -36,7 +36,7 @@ static struct option long_options[] =
    { "reverse-fastq",       required_argument, NULL, 'r' },
    { "score-method",        required_argument, NULL, 's' },
    { "min-trim-length",     required_argument, NULL, 't' },
-   { "max-uncalled-base",   required_argument, NULL, 'u' }, 
+   { "max-uncalled-base",   required_argument, NULL, 'u' },
    { "min-overlap",         required_argument, NULL, 'v' },
    { "memory",              required_argument, NULL, 'y' },
    { "cap",                 required_argument, NULL, 'c' },
@@ -47,12 +47,12 @@ static struct option long_options[] =
  };
 
 /** @brief Usage help screen
-     
+
     A help-screen for all command-line options available in PEAR
 */
 void usage (void)
 {
-  fprintf (stdout, " ____  _____    _    ____ \n"); 
+  fprintf (stdout, " ____  _____    _    ____ \n");
   fprintf (stdout, "|  _ \\| ____|  / \\  |  _ \\\n");
   fprintf (stdout, "| |_) |  _|   / _ \\ | |_) |\n");
   fprintf (stdout, "|  __/| |___ / ___ \\|  _ <\n");
@@ -62,7 +62,7 @@ void usage (void)
   fprintf (stdout, "Zhang et al (2014) Bioinformatics 30(5): 614-620 | doi:10.1093/bioinformatics/btt593\n\n");
   fprintf (stdout, "License: %s\n", LICENCE);
   fprintf (stdout, "Bug-reports and requests to: %s\n", CONTACT);
-  fprintf (stdout, "\n\n"); 
+  fprintf (stdout, "\n\n");
   fprintf (stdout, "Usage: pear <options>\n");
   fprintf (stdout, "Standard (mandatory):\n");
   fprintf (stdout, "  -f, --forward-fastq         <str>     Forward paired-end FASTQ file.\n");
@@ -77,7 +77,7 @@ void usage (void)
   fprintf (stdout, "  -v, --min-overlap           <int>     Specify the minimum overlap size. The minimum overlap may be\n"
                    "                                        set to 1 when the statistical test is used. However, further\n"
                    "                                        restricting  the  minimum overlap size to a proper value may\n"
-                   "                                        reduce false-positive assembles. (default: 10)\n"); 	
+                   "                                        reduce false-positive assembles. (default: 10)\n");
   fprintf (stdout, "  -m, --max-assembly-length   <int>     Specify   the  maximum  possible  length  of  the  assembled\n"
                    "                                        sequences.  Setting this value to 0 disables the restriction\n"
                    "                                        and assembled sequences may be arbitrary long. (default: 0)\n");
@@ -140,7 +140,7 @@ void usage (void)
 }
 
 /** @brief Command-line arguments parser
-    
+
     A parser for the command-line options of PEAR. A minimum of the two pair-end
     reads and output filename must be provided.
 
@@ -148,15 +148,7 @@ void usage (void)
     @param argv    The array of command-line parameters
     @param sw      The structure where the user-defined switches will be stored in
 */
-int decode_switches (int argc, char * argv[], struct user_args * sw)
-{
-  int    opt;
-  int     oi;
-  char *  ep;
-  int      n;
-  int      x;
-
-  /* initialization */
+void pear_init_args (struct user_args *sw) {
   sw->fastq_left    =      NULL;
   sw->fastq_right   =      NULL;
   sw->outfile       =      NULL;
@@ -177,6 +169,18 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
   sw->cap           =        40;
   sw->nbase         =         0;
   sw->keep_dir      =         0;
+}
+
+int decode_switches (int argc, char * argv[], struct user_args * sw)
+{
+  int    opt;
+  int     oi;
+  char *  ep;
+  int      n;
+  int      x;
+
+  /* initialization */
+  pear_init_args (sw);
 
   while ((opt = getopt_long(argc, argv, "b:ef:g:hj:m:n:o:p:q:r:s:t:u:v:y:c:zk", long_options, &oi)) != -1)
    {
@@ -256,7 +260,7 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
           sw->outfile = optarg;
           break;
 
-        case 'p':		
+        case 'p':
           if (!strcmp (optarg, "1.0") || !strcmp (optarg, "0.05") || !strcmp (optarg, "0.01") || !strcmp (optarg, "0.001") || !strcmp (optarg, "0.0001") )
            {
              sw->p_value = strtod (optarg, &ep);
@@ -266,7 +270,7 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
              printf ("Invalid p-value or minimal OES.\n");
              return (0);
            }
-          
+
           break;
 
         case 'q':
@@ -310,7 +314,7 @@ int decode_switches (int argc, char * argv[], struct user_args * sw)
 
         case 'u':
           sw->max_uncalled = strtod (optarg, &ep);     /* TODO: check this line */
-          
+
           if (ep == optarg || *ep != '\0' || sw->max_uncalled < 0 || sw->max_uncalled > 1)
            {
              printf ("Invalid max-uncalled-base value, must be between 0 and 1.\n");

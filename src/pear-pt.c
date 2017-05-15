@@ -5,13 +5,14 @@
 #include <pthread.h>
 #include <assert.h>
 #include <stdarg.h>
+
 #include "args.h"
 #include "emp.h"
 #include "reader.h"
 #include "async.h"
 #include "pear.h"
 
-#include "../include/pear.h"
+#include "../include/pear/pear.h"
 
 /** @file pear-pt.c
     @brief Main file containing scoring and assembly related functions (pthreads version)
@@ -2749,11 +2750,14 @@ static void DisplayInstance (struct user_args * sw)
 
 }
 
-extern
-int pear (int argc, char * argv[])
+int pear_run (struct user_args *psw,
+    unsigned long *out_count_assembled,
+    unsigned long *out_count_unassembled,
+    unsigned long *out_count_discarded,
+    unsigned long *out_count_total)
 {
   int                   i;
-  struct user_args      sw;
+  struct user_args sw = *psw;
   struct emp_freq * ef;
   struct thread_local_t * thr_data;
   double
@@ -2765,14 +2769,6 @@ int pear (int argc, char * argv[])
   pthread_t * tid;
   unsigned int
     blockElements;
-
-  /* parse command-line arguments */
-  if (!decode_switches (argc, argv, &sw))
-   {
-     /* TODO: Validate reads names */
-     usage ();
-     return (EXIT_FAILURE);
-   }
 
   /* Display PEAR instance settings */
   DisplayInstance (&sw);
@@ -2946,6 +2942,11 @@ int pear (int argc, char * argv[])
   destroy_reader ();
   destroy_thr_global ();
   free (thr_data);
+
+  *out_count_assembled = g_count_assembled;
+  *out_count_discarded = g_count_discarded;
+  *out_count_unassembled = g_count_unassembled;
+  *out_count_total = g_count_total;
 
   return (EXIT_SUCCESS);
 }
