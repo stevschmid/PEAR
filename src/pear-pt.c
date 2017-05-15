@@ -10,6 +10,7 @@
 #include "reader.h"
 #include "async.h"
 #include "pear.h"
+#include "libpear.h"
 
 /** @file pear-pt.c
     @brief Main file containing scoring and assembly related functions (pthreads version)
@@ -43,7 +44,7 @@
 
 #define         DEGENERATE(x) (((x) ^ 1) && ((x) ^ 2) && ((x) ^ 4) && ((x) ^ 8))
 
-char map_nt[256] = 
+char map_nt[256] =
  {
    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -64,9 +65,9 @@ char map_nt[256] =
  };
 
 /* reverse mapping of number to nucleotide */
-char revmap_nt[16] = 
+char revmap_nt[16] =
  {
-   '\0', 'A', 'C', 'M', 'G', 'R', 'S', 'V', 
+   '\0', 'A', 'C', 'M', 'G', 'R', 'S', 'V',
    'T',  'W', 'Y', 'H', 'K', 'D', 'B', 'N'
  };
 
@@ -107,9 +108,9 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
 static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes);
 static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qright, int score_method, double * score, double * oes, struct emp_freq * ef);
 
-static char * outfile_extensions[NUM_OF_OUTFILES] = { ".assembled.fastq", 
-                                                      ".unassembled.forward.fastq", 
-                                                      ".unassembled.reverse.fastq", 
+static char * outfile_extensions[NUM_OF_OUTFILES] = { ".assembled.fastq",
+                                                      ".unassembled.forward.fastq",
+                                                      ".unassembled.reverse.fastq",
                                                       ".discarded.fastq" };
 
 static char * sanityCheckMessage[2] = {
@@ -150,11 +151,11 @@ unsigned long current_progress = 0;
 //int stat_test (double, double, int, double);
 int stat_test2 (double, double, int, double);
 
-static double assemble_overlap (fastqRead * left, 
-                         fastqRead * right, 
-                         int base_left, 
-                         int base_right, 
-                         int ol_size, 
+static double assemble_overlap (fastqRead * left,
+                         fastqRead * right,
+                         int base_left,
+                         int base_right,
+                         int ol_size,
                          fastqRead * ai,
                          struct user_args * sw);
 
@@ -251,9 +252,9 @@ static void add_base_qscores (char * s, int base, int cap)
 */
 static int trim (fastqRead * read, struct user_args * sw, double * uncalled)
 {
-  int 
+  int
    i;
-  char  
+  char
     * qscore,
     * data;
 
@@ -337,7 +338,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
 }
 
 /** @brief Initialize table of precomputed scores
-    
+
     This function computes a table of scores for every possible combination of
     basepair and quality scores. The element \a sc_eqX[i][j] is the score for a
     basepair \a X with quality scores \a i and \j in the two sequences.  The
@@ -351,7 +352,7 @@ static int trim_cpl (fastqRead * read, struct user_args * sw, double * uncalled)
 static void init_scores (struct emp_freq * ef)
 {
   int i, j, k;
-  double        
+  double
     ex, ey,
     pa2,   pc2,   pg2,   pt2,   pagt2, pcgt2, pact2, pacg2, pacg, pact, pagt, pcgt,
     pac2,  pag2,  pat2,  pcg2,  pct2,  pgt2,
@@ -377,7 +378,7 @@ static void init_scores (struct emp_freq * ef)
 
   for (i = 1; i < 64; ++ i)
    {
-     for (j = 1; j < 64; ++ j) 
+     for (j = 1; j < 64; ++ j)
       {
         ex = pow (10.0, - (i - 1) / 10.0);
         ey = pow (10.0, - (j - 1) / 10.0);
@@ -457,7 +458,7 @@ scoring_ef (char dleft, char dright, char qleft, char qright, int score_method, 
         case 2:
           tmp     = (1 - ef->q) * mismatch;
           *oes   += (ef->q * match - tmp);
-          *score -= tmp; 
+          *score -= tmp;
           break;
         case 3:
           *score -= mismatch;
@@ -750,7 +751,7 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
         case 2:
           tmp     = (1 - ef->q);
           *oes   += (ef->q - tmp);
-          *score -= tmp; 
+          *score -= tmp;
           break;
         case 3:
           *score -= 1;
@@ -790,10 +791,10 @@ static INLINE void scoring_ef_nm (char dleft, char dright, char qleft, char qrig
       {
        /* swap the values */
        dleft  = dleft ^ dright; dright = dleft ^ dright; dleft  = dleft ^ dright;
-       
+
        /* swap quality scores */
        qleft  = qleft ^ qright; qright = qleft ^ qright; qleft  = qleft ^ qright;
-        
+
       }
      i = translate[dleft | dright];
      assert (i != -1);
@@ -837,7 +838,7 @@ INLINE void  scoring (char dleft, char dright, char qleft, char qright, int scor
         case 2:
           tmp     = (1 - 0.25) * mismatch;
           *oes   += (0.25 * match - tmp);
-          *score -= tmp; 
+          *score -= tmp;
           break;
         case 3:
           *score -= mismatch;
@@ -904,7 +905,7 @@ static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright,
         case 2:
           tmp     = 0.75;
           *oes   += ( - 0.5);
-          *score -= 0.75; 
+          *score -= 0.75;
           break;
         case 3:
           *score -= 1;
@@ -968,7 +969,7 @@ static INLINE void scoring_nm (char dleft, char dright, char qleft, char qright,
 
 static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
 {
-  int 
+  int
     i,
     j;
   double
@@ -995,13 +996,13 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
      nMatch = score = oes = 0;
      for (j = 0; j < i; ++ j)
       {
-        scoring_ef_nm (forward->data[nForward - i + j], 
-                       reverse->data[j], 
-                       forward->qscore[nForward - i + j], 
-                       reverse->qscore[j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[nForward - i + j],
+                       reverse->data[j],
+                       forward->qscore[nForward - i + j],
+                       reverse->qscore[j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
 
         if (forward->data[nForward - i + j] == reverse->data[j]) ++nMatch;
@@ -1027,13 +1028,13 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
      score = oes = nMatch = 0;
      for (j = 0; j < nReverse; ++ j)
       {
-        scoring_ef_nm (forward->data[i + j], 
-                       reverse->data[j], 
-                       forward->qscore[i + j], 
-                       reverse->qscore[j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[i + j],
+                       reverse->data[j],
+                       forward->qscore[i + j],
+                       reverse->qscore[j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[i + j] == reverse->data[j]) ++nMatch;
       }
@@ -1058,13 +1059,13 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
      score = oes = nMatch = 0;
      for (j = 0; j < i; ++ j)
       {
-        scoring_ef_nm (forward->data[j], 
-                       reverse->data[nReverse - i  + j], 
-                       forward->qscore[j], 
-                       reverse->qscore[nReverse - i + j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[j],
+                       reverse->data[nReverse - i  + j],
+                       forward->qscore[j],
+                       reverse->qscore[nReverse - i + j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[j] == reverse->data[nReverse - i + j]) ++nMatch;
       }
@@ -1079,13 +1080,13 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
   if (!bestScoreCase) return (0);
 
-  if (sw->test == 1) 
+  if (sw->test == 1)
     st_pass = stat_test2 (sw->p_value, best_oes, sw->min_overlap, ef->q);
   else
     st_pass = stat_test2 (sw->p_value, best_oes, best_overlap, ef->q);
 
   if (!st_pass) return (0);
-  
+
   /* TODO PART */
 
   switch (bestScoreCase)
@@ -1134,8 +1135,8 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);   /* The merged read will require both memory buffers (forward + reverse) */
              else
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
-               
-             
+
+
              assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
@@ -1166,7 +1167,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
        if (nReverse >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
-          
+
           assemble_overlap (forward, reverse, best_overlap, 0, nReverse, forward, sw);
 
           forward->data[best_overlap + nReverse]   = 0;
@@ -1179,7 +1180,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
        break;
      case PEAR_MERGE_TRIM_BOTH:
        asm_len = best_overlap;
-       
+
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
          if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[nReverse - best_overlap + j]))) ++uncalled;
@@ -1188,7 +1189,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
-          
+
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE);   /* flag that it's one piece */
@@ -1209,7 +1210,7 @@ static INLINE int assembly_FORWARD_LONGER (fastqRead * forward, fastqRead * reve
 
 static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int n)
 {
-  int 
+  int
     i,
     j;
   double
@@ -1227,17 +1228,17 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
 
   /* compute score for every overlap */
   for (i = 0; i <= n; ++ i)    /* the size of the overlap */
-   {     
+   {
      nMatch = score = oes = 0;
      for (j = 0; j < i; ++ j)
       {
-        scoring_ef_nm (forward->data[n - i + j], 
-                       reverse->data[j], 
-                       forward->qscore[n - i + j], 
-                       reverse->qscore[j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[n - i + j],
+                       reverse->data[j],
+                       forward->qscore[n - i + j],
+                       reverse->qscore[j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[n - i + j] == reverse->data[j]) ++nMatch;
       }
@@ -1256,12 +1257,12 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
      for (j = 0; j < i; ++j)
       {
         scoring_ef_nm (forward->data[j],
-                       reverse->data[n - i + j], 
-                       forward->qscore[j], 
-                       reverse->qscore[n - i + j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+                       reverse->data[n - i + j],
+                       forward->qscore[j],
+                       reverse->qscore[n - i + j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[n - i + j] == reverse->data[j]) ++nMatch;
       }
@@ -1344,7 +1345,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
         if (2 * n - asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
          {
            PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
-           
+
            assemble_overlap (forward, reverse, n - best_overlap, 0, best_overlap, forward, sw);
            memmove (reverse->data,   reverse->data   + best_overlap,  n - best_overlap);
            memmove (reverse->qscore, reverse->qscore + best_overlap,  n - best_overlap);
@@ -1364,7 +1365,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
   else
    {
      asm_len = best_overlap;
-     
+
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
        if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[n - best_overlap + j]))) ++uncalled;
@@ -1373,7 +1374,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
         assemble_overlap (forward, reverse, 0, n - best_overlap, best_overlap, forward, sw);
-        
+
         forward->data[best_overlap]   = 0;
         forward->qscore[best_overlap] = 0;
         PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE);   /* flag that it's one piece */
@@ -1394,7 +1395,7 @@ static INLINE int assembly_READS_EQUAL (fastqRead * forward, fastqRead * reverse
 
 static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw, int nForward, int nReverse)
 {
-  int 
+  int
     i,
     j;
   double
@@ -1421,13 +1422,13 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
      nMatch = score = oes = 0;
      for (j = 0; j < i; ++ j)
       {
-        scoring_ef_nm (forward->data[nForward - i + j], 
-                       reverse->data[j], 
-                       forward->qscore[nForward - i + j], 
-                       reverse->qscore[j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[nForward - i + j],
+                       reverse->data[j],
+                       forward->qscore[nForward - i + j],
+                       reverse->qscore[j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[nForward - i + j] == reverse->data[j]) ++nMatch;
       }
@@ -1450,13 +1451,13 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
      score = oes = nMatch = 0;
      for (j = 0; j < nForward; ++ j)
       {
-        scoring_ef_nm (forward->data[j], 
-                       reverse->data[nReverse - nForward - i + j], 
-                       forward->qscore[j], 
-                       reverse->qscore[nReverse - nForward - i + j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+        scoring_ef_nm (forward->data[j],
+                       reverse->data[nReverse - nForward - i + j],
+                       forward->qscore[j],
+                       reverse->qscore[nReverse - nForward - i + j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[j] == reverse->data[nReverse - nForward - i + j]) ++nMatch;
       }
@@ -1480,12 +1481,12 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
      for (j = 0; j < i; ++ j)
       {
         scoring_ef_nm (forward->data[j],
-                       reverse->data[nReverse - i  + j], 
-                       forward->qscore[j], 
-                       reverse->qscore[nReverse - i + j], 
-                       sw->score_method, 
-                       &score, 
-                       &oes, 
+                       reverse->data[nReverse - i  + j],
+                       forward->qscore[j],
+                       reverse->qscore[nReverse - i + j],
+                       sw->score_method,
+                       &score,
+                       &oes,
                        ef);
         if (forward->data[j] == reverse->data[nReverse - i + j]) ++nMatch;
       }
@@ -1501,7 +1502,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
   if (!bestScoreCase) return (0);
 
   /* do a statistical test */
-  if (sw->test == 1) 
+  if (sw->test == 1)
     st_pass = stat_test2 (sw->p_value, best_oes, sw->min_overlap, ef->q);
   else
     st_pass = stat_test2 (sw->p_value, best_oes, best_overlap, ef->q);
@@ -1554,8 +1555,8 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);   /* The merged read will require both memory buffers (forward + reverse) */
              else
                PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE); /* The merged read will fit inside the forward read mem buffer */
-               
-             
+
+
              assemble_overlap (forward, reverse, nForward - best_overlap, 0, best_overlap, forward, sw);
              memmove (reverse->data,   reverse->data   + best_overlap,  nReverse - best_overlap);
              memmove (reverse->qscore, reverse->qscore + best_overlap,  nReverse - best_overlap);
@@ -1586,7 +1587,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
        if (nForward >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_BOTH);
-          
+
           assemble_overlap (forward, reverse, 0, nReverse - nForward - best_overlap, nForward, forward, sw);
 
           memmove (reverse->data,   reverse->data + nReverse - best_overlap,   best_overlap);
@@ -1602,7 +1603,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
        break;
      case PEAR_MERGE_TRIM_BOTH:
        asm_len = best_overlap;
-       
+
        /* compute uncalled */
        for (j = 0; j < asm_len; ++ j)
          if ((DEGENERATE(forward->data[j])) && (DEGENERATE(reverse->data[nReverse - best_overlap + j]))) ++uncalled;
@@ -1611,7 +1612,7 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
        if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
         {
           assemble_overlap (forward, reverse, 0, nReverse - best_overlap, best_overlap, forward, sw);
-          
+
           forward->data[best_overlap]   = 0;
           forward->qscore[best_overlap] = 0;
           PEAR_SET_OUT_TYPE(forward,PEAR_READ_OUT_SINGLE);   /* flag that it's one piece */
@@ -1626,17 +1627,17 @@ static INLINE int assembly_REVERSE_LONGER (fastqRead * forward, fastqRead * reve
    }
 
   return (1);
-  
+
 }
 
 
 static INLINE int assembly_ef (fastqRead * forward, fastqRead * reverse, struct emp_freq * ef, struct user_args  * sw)
 {
   int
-    nForward, 
+    nForward,
     nReverse,
     rc;
-  
+
   nForward = strlen (forward->data);
   nReverse = strlen (reverse->data);
 
@@ -1674,14 +1675,14 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
   int                   asm_len = 0;
   int                   st_pass;
   double                uncalled = 0;
-  
+
   n = strlen (left->data);
-     
+
   /* compute score for every overlap */
   score = 0;
   oes   = 0;
   for (i = 0; i <= n; ++ i)    /* the size of the overlap */
-   {     
+   {
      nMatch = 0;
      score = 0;
      oes   = 0;
@@ -1811,7 +1812,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
   else
    {
      asm_len = best_overlap;
-     
+
      /* compute uncalled */
      for (j = 0; j < asm_len; ++ j)
        if ((DEGENERATE(left->data[j])) && (DEGENERATE(right->data[n - best_overlap + j]))) ++uncalled;
@@ -1820,7 +1821,7 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
      if (asm_len >= sw->min_overlap && asm_len >= sw->min_asm_len && asm_len <= sw->max_asm_len && uncalled <= sw->max_uncalled)
       {
         assemble_overlap (left, right, 0, n - best_overlap, best_overlap, left, sw);
-        
+
         left->data[best_overlap]   = 0;
         left->qscore[best_overlap] = 0;
         PEAR_SET_OUT_TYPE(left,PEAR_READ_OUT_SINGLE);   /* flag that it's one piece */
@@ -1850,14 +1851,14 @@ static INLINE int assembly (fastqRead * left, fastqRead * right, struct user_arg
 
 static double assemble_overlap (fastqRead * left, fastqRead * right, int base_left, int base_right, int ol_size, fastqRead * ai, struct user_args * sw)
 {
-  int           i; 
+  int           i;
   char          x, y;
   char          qx, qy;
   //double        exp_match  = 0;
 
   for (i = 0; i < ol_size; ++i)
    {
-     x  = left->data[base_left + i]; 
+     x  = left->data[base_left + i];
      y  = right->data[base_right + i];
      qx = left->qscore[base_left + i];
      qy = right->qscore[base_right + i];
@@ -1869,13 +1870,13 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
       }
      else if (DEGENERATE(x))
       {
-        //exp_match += 0.25; 
+        //exp_match += 0.25;
         ai->data[base_left + i]   = y;
         ai->qscore[base_left + i] = qy;
       }
      else if (DEGENERATE(y))
       {
-        //exp_match += 0.25; 
+        //exp_match += 0.25;
         ai->data[base_left + i]   = x;
         ai->qscore[base_left + i] = qx;
       }
@@ -1884,7 +1885,7 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
         if (x == y)
          {
            //exp_match += (sc_eq[(int)qx][(int)qy] / match_score);
-           
+
            ai->data[base_left + i] = x;
            //ai->qscore[base_left + i] = (right->qscore[base_right + i] - sw->phred_base) + (left->qscore[base_left + i] - sw->phred_base) + sw->phred_base; //qs_mul[qx][qy];
            ai->qscore[base_left + i] = (right->qscore[base_right + i]) + (left->qscore[base_left + i]) - 1; //qs_mul[qx][qy];
@@ -1892,7 +1893,7 @@ static double assemble_overlap (fastqRead * left, fastqRead * right, int base_le
         else
          {
            //exp_match += (1 - sc_neq[(int)qx][(int)qy] / mismatch_score);
-           
+
            if (qx > qy)
             {
               if (sw->nbase)    /* nbase option */
@@ -1944,18 +1945,18 @@ static void mstrcpl (char * s)
   if (!s) return;
 
   while (*s)
-   {  
+   {
       /* if the codes were 0,1,2,3,4 it would be
          that simple:
       *s = (*s >> 2) + (~*s & 3);
       */
- 
+
       /* with codes 1,2,3,4,5 it gets nasty: */
       *s = cpl_nt[(int)*s];
       /*
-      *s = (((*s & 1) & (! (*s & 2))) << 2) |  
-           (((!((*s & 4) >> 2) ) & ((*s & 2) >> 1)) << 1 ) | 
-           (((!((*s & 4) >> 2)) & ((*s & 2) >> 1) & !(*s & 1)) | 
+      *s = (((*s & 1) & (! (*s & 2))) << 2) |
+           (((!((*s & 4) >> 2) ) & ((*s & 2) >> 1)) << 1 ) |
+           (((!((*s & 4) >> 2)) & ((*s & 2) >> 1) & !(*s & 1)) |
                 (((*s & 4) >> 2) & !((*s & 2) >> 1)));*/
       ++s;
    }
@@ -1997,11 +1998,11 @@ makefilename (const char * prefix, const char * suffix)
  *
  *  Write the result of overlapping of a specific read to the corresponding output file
  *
- *  @param fwd  Structure containing the forward reads. Note that this structure is 
+ *  @param fwd  Structure containing the forward reads. Note that this structure is
  *              mutable and has been modified to contain the new read which is the
  *              result of the assembly.
- *  @param rev  Structure containing the reverse reads. Note that this structure is 
- *              mutable and has been modified to contain the new read which is the 
+ *  @param rev  Structure containing the reverse reads. Note that this structure is
+ *              mutable and has been modified to contain the new read which is the
  *              result of the assembly.
  *  @param elms Number of reads in the structure
  *  @param fd   Array of file descriptors of output files
@@ -2010,7 +2011,7 @@ static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, F
 {
   unsigned int i;
   char bothOut;   /* this is set if both fwd[i] and rev[i] contain the resulting assembled read and qscore */
-  
+
   for ( i = 0; i < elms; ++ i)
    {
      bothOut = PEAR_DECODE_OUT_TYPE(fwd[i]);
@@ -2033,7 +2034,7 @@ static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, F
          }
         fprintf (fd[0], "+\n");
 
-        
+
         add_base_qscores(fwd[i]->qscore, sw->phred_base, sw->cap);
         if (!bothOut)
          {
@@ -2045,10 +2046,10 @@ static void write_data (fastqRead ** fwd, fastqRead ** rev, unsigned int elms, F
            fprintf (fd[0], "%s",   fwd[i]->qscore);
            fprintf (fd[0], "%s\n", rev[i]->qscore);
          }
-        
+
         ++ g_count_assembled;
       }
-     else 
+     else
       {
         add_base_qscores(fwd[i]->qscore, sw->phred_base, sw->cap);
         add_base_qscores(rev[i]->qscore, sw->phred_base, sw->cap);
@@ -2130,7 +2131,7 @@ static void * entry_point_ef (void * data)
   /* initialization of values */
   thr_local = (struct thread_local_t *)data;
 
-  
+
   while (1)
    {
      // TODO: The first condition in the next line is useless?
@@ -2142,9 +2143,9 @@ static void * entry_point_ef (void * data)
         fflush(stdout);
         write_data (thr_global.xblock->fwd->reads, thr_global.xblock->rev->reads, thr_global.xblock->reads, thr_global.fd, thr_local->sw);
         // TODO: read_data ();
-        elms = db_get_next_reads (thr_global.xblock->fwd, 
-                                  thr_global.xblock->rev, 
-                                  thr_global.yblock->fwd, 
+        elms = db_get_next_reads (thr_global.xblock->fwd,
+                                  thr_global.xblock->rev,
+                                  thr_global.yblock->fwd,
                                   thr_global.yblock->rev,
                                   &inputFileSanity);
           //read_size = strlen (fwd_block.reads[0]->data);
@@ -2294,7 +2295,7 @@ static void * entry_point (void * data)
   /* initialization of values */
   thr_local = (struct thread_local_t *)data;
 
-  
+
   while (1)
    {
      // TODO: The first condition in the next line is useless?
@@ -2304,9 +2305,9 @@ static void * entry_point (void * data)
         fprintf (stdout, "."); fflush (stdout);
         write_data (thr_global.xblock->fwd->reads, thr_global.xblock->rev->reads, thr_global.xblock->reads, thr_global.fd, thr_local->sw);
         // TODO: read_data ();
-        elms = db_get_next_reads (thr_global.xblock->fwd, 
-                                  thr_global.xblock->rev, 
-                                  thr_global.yblock->fwd, 
+        elms = db_get_next_reads (thr_global.xblock->fwd,
+                                  thr_global.xblock->rev,
+                                  thr_global.yblock->fwd,
                                   thr_global.yblock->rev,
                                   &inputFileSanity);
           //read_size = strlen (fwd_block.reads[0]->data);
@@ -2484,20 +2485,20 @@ static void free_global_thread_memory (void)
 
 static void destroy_thr_global (void)
 {
-  close_output_files(); 
+  close_output_files();
 
   /* free memory */
   free_global_thread_memory ();
 }
 
 /** @brief Initialize output file names
-    
+
     Create output file names based on input parameters, open them for writing
     and store the file pointers to the global thread structures
-    
+
     @param sw
       Parsed command-line parameters given by the user
-    
+
     @return
       Returns 1 in case of success, 0 if error
 */
@@ -2505,7 +2506,7 @@ static int init_files (struct user_args * sw)
 {
   int i, j;
   char * out[4];
-  
+
   /* construct output file names */
   for (i = 0; i < NUM_OF_OUTFILES; ++ i)
    {
@@ -2538,7 +2539,7 @@ static void * emp_entry_point (void * data)
   thr_local = (struct thread_local_t *)data;
 
   ef = (struct emp_freq *) calloc (1, sizeof (struct emp_freq));
-  
+
   while (1)
    {
      // TODO: The first condition in the next line is useless?
@@ -2547,9 +2548,9 @@ static void * emp_entry_point (void * data)
         pthread_mutex_lock (&cs_mutex_io);
         //write_data (thr_global.xblock->fwd->reads, thr_global.xblock->rev->reads, thr_global.xblock->reads, thr_global.fd);
         // TODO: read_data ();
-        elms = db_get_next_reads (thr_global.xblock->fwd, 
-                                  thr_global.xblock->rev, 
-                                  thr_global.yblock->fwd, 
+        elms = db_get_next_reads (thr_global.xblock->fwd,
+                                  thr_global.xblock->rev,
+                                  thr_global.yblock->fwd,
                                   thr_global.yblock->rev,
                                   &inputFileSanity);
           //read_size = strlen (fwd_block.reads[0]->data);
@@ -2579,7 +2580,7 @@ static void * emp_entry_point (void * data)
      pthread_mutex_lock (&cs_mutex_wnd);
      if (thr_global.xblock->reads == thr_global.xblock->processed)
       {
-        if (thr_global.finish) 
+        if (thr_global.finish)
          {
            pthread_mutex_unlock (&cs_mutex_wnd);
            break;
@@ -2680,7 +2681,7 @@ static void * emp_entry_point (void * data)
                     default:    /* uncalled bases */
                       ++ ef->freqn;
                       break;
-                      
+
                   }
                  ++ seq;
                }
@@ -2701,7 +2702,7 @@ static void * emp_entry_point (void * data)
   //   pthread_mutex_unlock (&cs_mutex_out);
    }
 //           pthread_mutex_lock (&cs_mutex_out);
-           
+
 //  printf ("thread: %2d   A: %d C: %d G: %d T: %d\n", thr_local->id, ef->freqa, ef->freqc, ef->freqg, ef->freqt);
   //         pthread_mutex_unlock (&cs_mutex_out);
   return (ef);
@@ -2709,7 +2710,7 @@ static void * emp_entry_point (void * data)
 
 static void DisplayInstance (struct user_args * sw)
 {
-  fprintf (stdout, " ____  _____    _    ____ \n"); 
+  fprintf (stdout, " ____  _____    _    ____ \n");
   fprintf (stdout, "|  _ \\| ____|  / \\  |  _ \\\n");
   fprintf (stdout, "| |_) |  _|   / _ \\ | |_) |\n");
   fprintf (stdout, "|  __/| |___ / ___ \\|  _ <\n");
@@ -2747,20 +2748,21 @@ static void DisplayInstance (struct user_args * sw)
 
 }
 
-int main (int argc, char * argv[])
+extern
+int pear (int argc, char * argv[])
 {
   int                   i;
   struct user_args      sw;
   struct emp_freq * ef;
   struct thread_local_t * thr_data;
-  double 
-    a = 0, 
-    c = 0, 
-    g = 0, 
-    t = 0, 
+  double
+    a = 0,
+    c = 0,
+    g = 0,
+    t = 0,
     n = 0;
   pthread_t * tid;
-  unsigned int 
+  unsigned int
     blockElements;
 
   /* parse command-line arguments */
@@ -2770,7 +2772,7 @@ int main (int argc, char * argv[])
      usage ();
      return (EXIT_FAILURE);
    }
-  
+
   /* Display PEAR instance settings */
   DisplayInstance (&sw);
 
@@ -2792,19 +2794,19 @@ int main (int argc, char * argv[])
    }
 
   /* Initialize read buffers */
-  init_fastq_reader_double_buffer (sw.fastq_left, 
-                                   sw.fastq_right, 
-                                   sw.memory, 
-                                   thr_global.xblock->fwd, 
-                                   thr_global.xblock->rev, 
-                                   thr_global.yblock->fwd, 
+  init_fastq_reader_double_buffer (sw.fastq_left,
+                                   sw.fastq_right,
+                                   sw.memory,
+                                   thr_global.xblock->fwd,
+                                   thr_global.xblock->rev,
+                                   thr_global.yblock->fwd,
                                    thr_global.yblock->rev);
 
   if (sw.emp_freqs)
    {
      printf ("Computing empirical frequencies....: ");
      fflush (stdout);
-     blockElements = db_get_next_reads (thr_global.yblock->fwd, 
+     blockElements = db_get_next_reads (thr_global.yblock->fwd,
                                thr_global.yblock->rev,
                                thr_global.xblock->fwd,
                                thr_global.xblock->rev,
@@ -2820,7 +2822,7 @@ int main (int argc, char * argv[])
         thr_data[i].sw             = &sw;
         thr_data[i].start          = 0;
         thr_data[i].end            = 0;
-        pthread_create (&tid[i], NULL, emp_entry_point, (void *)&thr_data[i]); 
+        pthread_create (&tid[i], NULL, emp_entry_point, (void *)&thr_data[i]);
       }
      for (i = 0; i < sw.threads; ++ i)
       {
@@ -2867,7 +2869,7 @@ int main (int argc, char * argv[])
      ef->freqa = ef->freqc = ef->freqg = ef->freqt = ef->total = ef->pa = ef->pc = ef->pg = ef->pt = ef->q = 0.25;
      sw.emp_freqs = 1;
    }
-  
+
   init_scores(ef);
   current_progress = 0;
 
@@ -2875,7 +2877,7 @@ int main (int argc, char * argv[])
   fprintf (stdout, "Assemblying reads: 0\%%");
   fflush (stdout);
 
-  blockElements = db_get_next_reads (thr_global.yblock->fwd, 
+  blockElements = db_get_next_reads (thr_global.yblock->fwd,
                             thr_global.yblock->rev,
                             thr_global.xblock->fwd,
                             thr_global.xblock->rev,
@@ -2896,9 +2898,9 @@ int main (int argc, char * argv[])
      thr_data[i].end    = 0;
      thr_data[i].ef     = ef;
      if (sw.emp_freqs)
-       pthread_create (&tid[i], NULL, entry_point_ef, (void *)&thr_data[i]); 
+       pthread_create (&tid[i], NULL, entry_point_ef, (void *)&thr_data[i]);
      else
-       pthread_create (&tid[i], NULL, entry_point, (void *)&thr_data[i]); 
+       pthread_create (&tid[i], NULL, entry_point, (void *)&thr_data[i]);
    }
 
   for (i = 0; i < sw.threads; ++ i)
@@ -2943,6 +2945,6 @@ int main (int argc, char * argv[])
   destroy_reader ();
   destroy_thr_global ();
   free (thr_data);
-  
+
   return (EXIT_SUCCESS);
 }
