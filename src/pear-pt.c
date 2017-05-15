@@ -10,7 +10,8 @@
 #include "reader.h"
 #include "async.h"
 #include "pear.h"
-#include "libpear.h"
+
+#include "../include/pear.h"
 
 /** @file pear-pt.c
     @brief Main file containing scoring and assembly related functions (pthreads version)
